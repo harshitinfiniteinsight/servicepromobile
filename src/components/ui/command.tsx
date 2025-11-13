@@ -101,16 +101,26 @@ CommandSeparator.displayName = CommandPrimitive.Separator.displayName;
 const CommandItem = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Item>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.Item>
->(({ className, ...props }, ref) => (
-  <CommandPrimitive.Item
-    ref={ref}
-    className={cn(
-      "relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none data-[disabled=true]:pointer-events-none data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50",
-      className,
-    )}
-    {...props}
-  />
-));
+>(({ className, ...props }, ref) => {
+  // Check if this item is explicitly selected (via data-selected prop)
+  const dataSelected = (props as any)['data-selected'];
+  const isExplicitlySelected = dataSelected === "true";
+  
+  return (
+    <CommandPrimitive.Item
+      ref={ref}
+      className={cn(
+        "relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50",
+        // Only apply orange background if explicitly selected, otherwise use subtle accent for keyboard navigation
+        isExplicitlySelected 
+          ? "bg-primary text-white" 
+          : "data-[selected='true']:bg-accent/50 data-[selected=true]:text-foreground",
+        className,
+      )}
+      {...props}
+    />
+  );
+});
 
 CommandItem.displayName = CommandPrimitive.Item.displayName;
 

@@ -1,378 +1,403 @@
-import { useState } from "react";
-import { ChevronLeft, Info, Search, Filter, Download, FileText, Mail, FileSpreadsheet, CalendarRange } from "lucide-react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
+import MobileHeader from "@/components/layout/MobileHeader";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Label } from "@/components/ui/label";
-import { SendEmailModal } from "@/components/modals/SendEmailModal";
-import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { format } from "date-fns";
+import { Search, Calendar, X, Download, Share2 } from "lucide-react";
+import { mockInvoices } from "@/data/mobileMockData";
+import { toast } from "sonner";
 
-// Mock data for Invoice Report
-const invoiceData = [
-  { date: "10/24/2025", orderId: "9978338373896", customerName: "katya test", employeeName: "bruce wayne", amount: "$2.06", status: "PAID", paymentType: "Recurring" },
-  { date: "10/24/2025", orderId: "8799825287606", customerName: "A B", employeeName: "bruce wayne", amount: "$2.06", status: "OPEN", paymentType: "Recurring" },
-  { date: "10/15/2025", orderId: "9536466904438", customerName: "bruce wayne", employeeName: "bruce wayne", amount: "$0.06", status: "OPEN", paymentType: "Single" },
-  { date: "09/22/2025", orderId: "3697805008499", customerName: "vishal patel", employeeName: "bruce wayne", amount: "$12.06", status: "PAID", paymentType: "Single" },
-  { date: "09/18/2025", orderId: "9621906408954", customerName: "vishal patel", employeeName: "bruce wayne", amount: "$48.24", status: "PAID", paymentType: "Single" },
-  { date: "09/17/2025", orderId: "9346558163253", customerName: "vishal patel", employeeName: "bruce wayne", amount: "$12.06", status: "PAID", paymentType: "Single" },
-  { date: "09/16/2025", orderId: "9011627707399", customerName: "vishal patel", employeeName: "bruce wayne", amount: "$12.06", status: "PAID", paymentType: "Single" },
-  { date: "09/15/2025", orderId: "9053609884832", customerName: "vishal patel", employeeName: "bruce wayne", amount: "$12.06", status: "PAID", paymentType: "Single" },
-  { date: "09/15/2025", orderId: "7968990451967", customerName: "vishal patel", employeeName: "bruce wayne", amount: "$24.11", status: "PAID", paymentType: "Single" },
-  { date: "09/15/2025", orderId: "6119593851441", customerName: "vishal patel", employeeName: "bruce wayne", amount: "$12.06", status: "PAID", paymentType: "Single" },
-  { date: "09/15/2025", orderId: "9017548793690", customerName: "vishal patel", employeeName: "bruce wayne", amount: "$12.06", status: "PAID", paymentType: "Single" },
-  { date: "09/12/2025", orderId: "8379944472901", customerName: "vishal patel", employeeName: "bruce wayne", amount: "$0.01", status: "PAID", paymentType: "Single" },
-  { date: "08/28/2025", orderId: "2455083442206", customerName: "vishal patel", employeeName: "bruce wayne", amount: "$12.06", status: "PAID", paymentType: "Single" },
-  { date: "08/27/2025", orderId: "9880176649526", customerName: "vishal patel", employeeName: "bruce wayne", amount: "$2.06", status: "PAID", paymentType: "Single" },
-];
+interface Invoice {
+  id: string;
+  customerId: string;
+  customerName: string;
+  issueDate: string;
+  dueDate: string;
+  amount: number;
+  status: string;
+  paymentMethod: string;
+  type: string;
+  employeeName?: string;
+  itemName?: string;
+  sku?: string;
+}
+
+// Enhanced invoice data with employee and item info
+const enhancedInvoices: Invoice[] = mockInvoices.map((inv, idx) => ({
+  ...inv,
+  employeeName: ["Mike Johnson", "Tom Wilson", "Chris Davis", "Sarah Martinez"][idx % 4],
+  itemName: ["HVAC Installation", "Plumbing Repair", "Electrical Service", "AC Maintenance", "Water Heater Replacement"][idx % 5],
+  sku: [`SVC-${String(idx + 1).padStart(3, "0")}`, `SVC-${String(idx + 2).padStart(3, "0")}`, `SVC-${String(idx + 3).padStart(3, "0")}`][idx % 3],
+}));
 
 const InvoiceReport = () => {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("all");
-  const [paymentType, setPaymentType] = useState("all");
-  const [days, setDays] = useState("all");
-  const [employee, setEmployee] = useState("all");
-  const [emailModalOpen, setEmailModalOpen] = useState(false);
-  
-  // Initialize date range to current month
-  const getCurrentMonthRange = () => {
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    return { from: startOfMonth, to: endOfMonth };
-  };
-  
-  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>(getCurrentMonthRange());
+  const [dateRange, setDateRange] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [paymentTypeFilter, setPaymentTypeFilter] = useState<string>("all");
+  const [daysFilter, setDaysFilter] = useState<string>("all");
+  const [employeeFilter, setEmployeeFilter] = useState<string>("all");
 
-  const handleClearFilters = () => {
+  // Get unique employee names
+  const employeeNames = useMemo(() => {
+    const unique = Array.from(new Set(enhancedInvoices.map((inv) => inv.employeeName).filter(Boolean)));
+    return unique as string[];
+  }, []);
+
+  // Filter invoices
+  const filteredInvoices = useMemo(() => {
+    return enhancedInvoices.filter((invoice) => {
+      // Search filter
+      const matchesSearch =
+        search === "" ||
+        invoice.customerName.toLowerCase().includes(search.toLowerCase()) ||
+        invoice.id.toLowerCase().includes(search.toLowerCase()) ||
+        invoice.sku?.toLowerCase().includes(search.toLowerCase()) ||
+        invoice.itemName?.toLowerCase().includes(search.toLowerCase());
+
+      // Status filter
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "open" && invoice.status === "Open") ||
+        (statusFilter === "paid" && invoice.status === "Paid");
+
+      // Payment type filter
+      const matchesPaymentType =
+        paymentTypeFilter === "all" ||
+        (paymentTypeFilter === "recurring" && invoice.type === "recurring") ||
+        (paymentTypeFilter === "single" && invoice.type === "single");
+
+      // Days filter
+      const matchesDays = (() => {
+        if (daysFilter === "all") return true;
+        const invoiceDate = new Date(invoice.issueDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const weekAgo = new Date(today);
+        weekAgo.setDate(weekAgo.getDate() - 7);
+
+        if (daysFilter === "today") {
+          return invoiceDate.getTime() === today.getTime();
+        }
+        if (daysFilter === "yesterday") {
+          return invoiceDate.getTime() === yesterday.getTime();
+        }
+        if (daysFilter === "this-week") {
+          return invoiceDate >= weekAgo && invoiceDate <= today;
+        }
+        return true;
+      })();
+
+      // Employee filter
+      const matchesEmployee =
+        employeeFilter === "all" || invoice.employeeName === employeeFilter;
+
+      // Date range filter (if set)
+      const matchesDateRange =
+        dateRange === "" ||
+        (() => {
+          // Simple date range check - in real app, parse dateRange properly
+          return true;
+        })();
+
+      return (
+        matchesSearch &&
+        matchesStatus &&
+        matchesPaymentType &&
+        matchesDays &&
+        matchesEmployee &&
+        matchesDateRange
+      );
+    });
+  }, [search, dateRange, statusFilter, paymentTypeFilter, daysFilter, employeeFilter]);
+
+  const clearFilters = () => {
     setSearch("");
-    setStatus("all");
-    setPaymentType("all");
-    setDays("all");
-    setEmployee("all");
-    setDateRange(getCurrentMonthRange());
+    setDateRange("");
+    setStatusFilter("all");
+    setPaymentTypeFilter("all");
+    setDaysFilter("all");
+    setEmployeeFilter("all");
+  };
+
+  const hasActiveFilters =
+    search !== "" ||
+    dateRange !== "" ||
+    statusFilter !== "all" ||
+    paymentTypeFilter !== "all" ||
+    daysFilter !== "all" ||
+    employeeFilter !== "all";
+
+  const handleOrderClick = (invoiceId: string) => {
+    navigate(`/invoices/${invoiceId}`);
   };
 
   const handleDownloadPDF = () => {
-    // Create PDF content
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Invoice Report</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 20px; }
-            h1 { color: #333; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            th { background-color: #f2f2f2; font-weight: bold; }
-          </style>
-        </head>
-        <body>
-          <h1>Service Pro911 - Invoice Report</h1>
-          <p>Date Range: ${dateRange.from && dateRange.to 
-            ? `${format(dateRange.from, "MM/dd/yyyy")} TO ${format(dateRange.to, "MM/dd/yyyy")}`
-            : "08/01/2025 TO 10/27/2025"}</p>
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>OrderID</th>
-                <th>Customer Name</th>
-                <th>Employee Name</th>
-                <th>Order Amount</th>
-                <th>Status</th>
-                <th>Payment Type</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${invoiceData.map(invoice => `
-                <tr>
-                  <td>${invoice.date}</td>
-                  <td>${invoice.orderId}</td>
-                  <td>${invoice.customerName}</td>
-                  <td>${invoice.employeeName}</td>
-                  <td>${invoice.amount}</td>
-                  <td>${invoice.status}</td>
-                  <td>${invoice.paymentType}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </body>
-      </html>
-    `;
-    
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-    printWindow.print();
-    toast.success("PDF download initiated");
+    toast.success("Downloading invoice report as PDF...");
+    // In real app, trigger PDF download
   };
 
   const handleDownloadCSV = () => {
-    // Create CSV content
-    const headers = ['Date', 'OrderID', 'Customer Name', 'Employee Name', 'Order Amount', 'Status', 'Payment Type'];
-    const csvRows = [
-      headers.join(','),
-      ...invoiceData.map(invoice => [
-        invoice.date,
-        invoice.orderId,
-        `"${invoice.customerName}"`,
-        `"${invoice.employeeName}"`,
-        invoice.amount,
-        invoice.status,
-        invoice.paymentType
-      ].join(','))
-    ];
-    
-    const csvContent = csvRows.join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    
-    link.setAttribute('href', url);
-    link.setAttribute('download', `invoice-report-${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    toast.success("CSV file downloaded successfully");
+    toast.success("Downloading invoice report as CSV...");
+    // In real app, trigger CSV download
   };
 
-  const handleSendEmail = () => {
-    setEmailModalOpen(true);
+  const handleShareEmail = () => {
+    toast.success("Sharing invoice report via email...");
+    // In real app, trigger email share
   };
 
   return (
-    <div className="flex-1 min-h-screen bg-background">
-      <div className="bg-primary text-primary-foreground p-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate("/reports")}
-              className="text-primary-foreground hover:bg-primary-foreground/20"
-            >
-              <ChevronLeft className="h-6 w-6" />
-            </Button>
-            <h1 className="text-2xl font-bold">Service Pro911 - Invoiced Reports</h1>
+    <div className="h-full flex flex-col overflow-hidden">
+      <MobileHeader
+        title="Invoice Reports"
+        showBack={true}
+        actions={
+          <div className="flex items-center gap-1">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 hover:bg-gray-100"
+                >
+                  <Share2 className="h-4 w-4 text-gray-700" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={handleShareEmail}>
+                  Share via Email
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 hover:bg-gray-100"
+                >
+                  <Download className="h-4 w-4 text-gray-700" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={handleDownloadPDF}>
+                  Download as PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleDownloadCSV}>
+                  Download as CSV
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-primary-foreground hover:bg-primary-foreground/20"
-            >
-              <Info className="h-6 w-6" />
-            </Button>
-          </div>
-        </div>
-      </div>
+        }
+      />
 
-      <div className="p-6 space-y-6 bg-background">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-medium text-foreground">
-            Date : {dateRange.from && dateRange.to 
-              ? `${format(dateRange.from, "MM/dd/yyyy")} TO ${format(dateRange.to, "MM/dd/yyyy")}`
-              : "08/01/2025 TO 10/27/2025"}
-          </p>
-          <div className="flex-1 max-w-2xl mx-6">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-5 w-5" />
+      <div
+        className="flex-1 overflow-y-auto scrollable px-4 pb-4"
+        style={{
+          paddingTop: "calc(3.5rem + env(safe-area-inset-top) + 0.5rem)",
+        }}
+      >
+        {/* Filters Section */}
+        <div className="space-y-1.5 mb-1 mt-1">
+          {/* Row 1: Date Range (70%) + Days Filter (30%) */}
+          <div className="flex gap-1.5 items-center">
+            {/* Date Range - 70% */}
+            <div className="relative flex-[0.7]">
+              <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
               <Input
-                placeholder="Search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-10 bg-background"
+                type="text"
+                placeholder="Select Date Range"
+                value={dateRange}
+                onChange={(e) => setDateRange(e.target.value)}
+                className="w-full h-[40px] pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-orange-500 focus:border-orange-500"
               />
             </div>
-          </div>
-        </div>
 
-        {/* Filters */}
-        <div className="flex items-end gap-4 flex-wrap">
-          <div className="space-y-2">
-            <Label className="text-sm font-medium text-muted-foreground">Date Range</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="w-[200px] justify-start text-left font-normal gap-2 h-10">
-                  <CalendarRange className="h-4 w-4" />
-                  {dateRange.from && dateRange.to ? (
-                    <>
-                      {format(dateRange.from, "MMM dd")} - {format(dateRange.to, "MMM dd, yyyy")}
-                    </>
-                  ) : (
-                    <span>Select date range</span>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="range"
-                  selected={dateRange}
-                  onSelect={(range) => setDateRange(range as { from: Date | undefined; to: Date | undefined })}
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
+            {/* Days Filter - 30% */}
+            <div className="flex-[0.3]">
+              <Select value={daysFilter} onValueChange={setDaysFilter}>
+                <SelectTrigger className="w-full h-[40px] border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-orange-500 focus:border-orange-500">
+                  <SelectValue placeholder="All Days" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Days</SelectItem>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="yesterday">Yesterday</SelectItem>
+                  <SelectItem value="this-week">This Week</SelectItem>
+                  <SelectItem value="custom">Custom</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <Label className="text-sm font-medium text-muted-foreground">Days</Label>
-            <Select value={days} onValueChange={setDays}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="All" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="7">Last 7 days</SelectItem>
-                <SelectItem value="30">Last 30 days</SelectItem>
-                <SelectItem value="90">Last 90 days</SelectItem>
-              </SelectContent>
-            </Select>
+          {/* Row 2: Search Field - Full Width */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
+            <Input
+              type="text"
+              placeholder="Search by name, order ID, SKU, etc."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full h-[40px] pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-orange-500 focus:border-orange-500"
+            />
           </div>
 
-          <div className="space-y-2">
-            <Label className="text-sm font-medium text-muted-foreground">Status</Label>
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="All" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="paid">PAID</SelectItem>
-                <SelectItem value="open">OPEN</SelectItem>
-              </SelectContent>
-            </Select>
+          {/* Row 3: Status (50%) + Payment Type (50%) */}
+          <div className="flex gap-1.5">
+            {/* Status Filter */}
+            <div className="flex-1">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full h-[40px] border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-orange-500 focus:border-orange-500">
+                  <SelectValue placeholder="All Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="open">Open</SelectItem>
+                  <SelectItem value="paid">Paid</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Payment Type Filter */}
+            <div className="flex-1">
+              <Select value={paymentTypeFilter} onValueChange={setPaymentTypeFilter}>
+                <SelectTrigger className="w-full h-[40px] border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-orange-500 focus:border-orange-500">
+                  <SelectValue placeholder="All Payment Types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Payment Types</SelectItem>
+                  <SelectItem value="recurring">Recurring</SelectItem>
+                  <SelectItem value="single">Single</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <Label className="text-sm font-medium text-muted-foreground">Payment Type</Label>
-            <Select value={paymentType} onValueChange={setPaymentType}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="All" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="recurring">Recurring</SelectItem>
-                <SelectItem value="single">Single</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Row 4: Employee (50%) + Clear Filter Button (50%) */}
+          <div className="flex gap-2">
+            {/* Employee Filter */}
+            <div className="flex-1">
+              <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
+                <SelectTrigger className="w-full h-[40px] border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-orange-500 focus:border-orange-500">
+                  <SelectValue placeholder="All Employees" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Employees</SelectItem>
+                  {employeeNames.map((name) => (
+                    <SelectItem key={name} value={name}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div className="space-y-2">
-            <Label className="text-sm font-medium text-muted-foreground">Employee</Label>
-            <Select value={employee} onValueChange={setEmployee}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="All" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="bruce">bruce wayne</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-sm font-medium text-muted-foreground opacity-0">Actions</Label>
-            <div className="flex items-center gap-2">
+            {/* Clear Filter Button */}
+            <div className="flex-1">
               <Button
                 variant="outline"
-                onClick={handleClearFilters}
-                className="gap-2 h-10"
+                onClick={clearFilters}
+                className="w-full h-[40px] border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900"
               >
-                Clear Filter
-                <Filter className="h-4 w-4" />
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-10 w-10"
-                  >
-                    <Download className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={handleDownloadPDF} className="gap-2">
-                    <FileText className="h-4 w-4" />
-                    Download as PDF
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleDownloadCSV} className="gap-2">
-                    <FileSpreadsheet className="h-4 w-4" />
-                    Download as CSV
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleSendEmail}
-                className="h-10 w-10"
-              >
-                <Mail className="h-4 w-4" />
+                Clear
               </Button>
             </div>
           </div>
         </div>
 
-        {/* Invoice Table */}
-        <div className="border rounded-lg overflow-hidden bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/50">
-                <TableHead className="font-semibold">Date</TableHead>
-                <TableHead className="font-semibold">OrderID</TableHead>
-                <TableHead className="font-semibold">Customer Name</TableHead>
-                <TableHead className="font-semibold">Employee Name</TableHead>
-                <TableHead className="font-semibold">Order Amount</TableHead>
-                <TableHead className="font-semibold">Status</TableHead>
-                <TableHead className="font-semibold">Payment Type</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {invoiceData.map((invoice, index) => (
-                <TableRow key={index}>
-                  <TableCell className="text-muted-foreground">{invoice.date}</TableCell>
-                  <TableCell className="text-muted-foreground">{invoice.orderId}</TableCell>
-                  <TableCell className="text-primary font-medium">{invoice.customerName}</TableCell>
-                  <TableCell className="text-primary font-medium">{invoice.employeeName}</TableCell>
-                  <TableCell className="text-primary font-semibold">{invoice.amount}</TableCell>
-                  <TableCell>
-                    <span className={invoice.status === "PAID" ? "text-success font-semibold" : "text-warning font-semibold"}>
-                      {invoice.status}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{invoice.paymentType}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        {/* Invoice List */}
+        <div className="space-y-2">
+          {filteredInvoices.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <p className="text-sm">No invoices found</p>
+            </div>
+          ) : (
+            filteredInvoices.map((invoice) => (
+              <div
+                key={invoice.id}
+                className="bg-white border border-gray-200 rounded-xl p-2.5 shadow-sm"
+              >
+                {/* Top Row: Order ID (left) | Status Badge (right) */}
+                <div className="flex justify-between items-start mb-0.5">
+                  <button
+                    onClick={() => handleOrderClick(invoice.id)}
+                    className="text-sm font-medium text-teal-600 hover:text-teal-700 active:text-teal-800 transition-colors"
+                  >
+                    {invoice.id}
+                  </button>
+                  <Badge
+                    className={`text-xs px-2 py-0.5 h-6 flex-shrink-0 ${
+                      invoice.status === "Paid"
+                        ? "bg-green-100 text-green-700 border-green-200"
+                        : invoice.status === "Open"
+                        ? "bg-orange-100 text-orange-700 border-orange-200"
+                        : "bg-gray-100 text-gray-700 border-gray-200"
+                    }`}
+                  >
+                    {invoice.status}
+                  </Badge>
+                </div>
+
+                {/* Date */}
+                <p className="text-[10px] text-gray-500 mb-1">{invoice.issueDate}</p>
+
+                {/* Divider */}
+                <div className="border-t border-gray-100 my-1.5"></div>
+
+                {/* Customer Info */}
+                <div className="mb-1">
+                  <h3 className="text-sm font-semibold text-gray-800">
+                    {invoice.customerName}
+                  </h3>
+                  {invoice.employeeName && (
+                    <p className="text-[10px] text-gray-600 mt-0.5">Employee: {invoice.employeeName}</p>
+                  )}
+                </div>
+
+                {/* Item Details */}
+                {invoice.itemName && (
+                  <div className="mb-1">
+                    <p className="text-sm text-gray-700 mb-0.5">{invoice.itemName}</p>
+                    {invoice.sku && (
+                      <Badge
+                        variant="outline"
+                        className="text-xs px-2 py-0.5 bg-gray-50 text-gray-600 border-gray-200 h-5"
+                      >
+                        {invoice.sku}
+                      </Badge>
+                    )}
+                  </div>
+                )}
+
+                {/* Amount & Payment Type */}
+                <div className="flex items-end justify-between pt-0.5">
+                  <div>
+                    <p className="text-sm font-semibold text-green-600">
+                      ${invoice.amount.toFixed(2)}
+                    </p>
+                    <p className="text-[10px] text-gray-500 mt-0.5">
+                      {invoice.type === "recurring" ? "Recurring" : "Single"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
-
-      <SendEmailModal
-        open={emailModalOpen}
-        onOpenChange={setEmailModalOpen}
-        customerEmail=""
-      />
     </div>
   );
 };

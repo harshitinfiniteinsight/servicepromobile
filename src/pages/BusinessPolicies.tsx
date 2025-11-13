@@ -1,105 +1,78 @@
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
+import MobileHeader from "@/components/layout/MobileHeader";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { ChevronLeft } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { Building2 } from "lucide-react";
 
 const BusinessPolicies = () => {
-  const navigate = useNavigate();
-  const { toast } = useToast();
-  const [paymentTerms, setPaymentTerms] = useState("due_on_receipt");
-  const [termsConditions, setTermsConditions] = useState("");
-  const [cancellationReturn, setCancellationReturn] = useState("");
+  const [policies, setPolicies] = useState({
+    cancellation: "Cancellations must be made at least 24 hours in advance. Same-day cancellations may incur a 50% charge.",
+    payment: "Payment is due upon completion of service unless otherwise agreed. Late payments may incur a 5% monthly fee.",
+    guarantee: "We guarantee all work for 90 days. If issues arise due to our workmanship, we will return to fix at no charge.",
+  });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    toast({
-      title: "Business Policies Updated",
-      description: "Your business policies have been saved successfully.",
-    });
+  const handleSave = () => {
+    // In real app, save policies
+    alert("Business policies updated successfully!");
   };
 
   return (
-    <div className="min-h-screen bg-muted/30">
-      <div className="bg-primary text-primary-foreground p-4 flex items-center gap-3 shadow-lg">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate("/settings")}
-          className="hover:bg-primary-foreground/20 text-primary-foreground"
-        >
-          <ChevronLeft className="h-6 w-6" />
+    <div className="h-full flex flex-col overflow-hidden">
+      <MobileHeader title="Business Policies" showBack={true} />
+      
+      <div className="flex-1 overflow-y-auto scrollable pt-14 px-4 pb-6 space-y-4">
+        {/* Info */}
+        <div className="p-4 rounded-xl bg-primary/10 border border-primary/20">
+          <div className="flex items-start gap-3">
+            <Building2 className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="font-semibold mb-1">Business Policies</h3>
+              <p className="text-sm text-muted-foreground">
+                Define your business policies that will be shown to customers.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Policy Forms */}
+        <div className="space-y-4">
+          <div>
+            <Label>Cancellation Policy</Label>
+            <Textarea
+              className="min-h-[120px] mt-2"
+              value={policies.cancellation}
+              onChange={(e) => setPolicies({ ...policies, cancellation: e.target.value })}
+              placeholder="Enter cancellation policy..."
+            />
+          </div>
+
+          <div>
+            <Label>Payment Terms</Label>
+            <Textarea
+              className="min-h-[120px] mt-2"
+              value={policies.payment}
+              onChange={(e) => setPolicies({ ...policies, payment: e.target.value })}
+              placeholder="Enter payment terms..."
+            />
+          </div>
+
+          <div>
+            <Label>Service Guarantee</Label>
+            <Textarea
+              className="min-h-[120px] mt-2"
+              value={policies.guarantee}
+              onChange={(e) => setPolicies({ ...policies, guarantee: e.target.value })}
+              placeholder="Enter service guarantee..."
+            />
+          </div>
+        </div>
+
+        {/* Save Button */}
+        <Button className="w-full" size="lg" onClick={handleSave}>
+          Save Policies
         </Button>
-        <h1 className="text-xl font-semibold">Business Policies</h1>
       </div>
-
-      <main className="p-4 sm:p-6 max-w-4xl mx-auto animate-fade-in">
-        <Card className="border-2 shadow-xl">
-          <CardContent className="p-6 sm:p-8">
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-3">
-                <Label htmlFor="payment-terms" className="text-base font-semibold text-foreground">
-                  Payment Terms:
-                </Label>
-                <Select value={paymentTerms} onValueChange={setPaymentTerms}>
-                  <SelectTrigger id="payment-terms" className="h-12 border-2">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="due_on_receipt">due on receipt</SelectItem>
-                    <SelectItem value="net_15">Net 15</SelectItem>
-                    <SelectItem value="net_30">Net 30</SelectItem>
-                    <SelectItem value="net_60">Net 60</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-3">
-                <Label htmlFor="terms-conditions" className="text-base font-semibold text-foreground">
-                  Terms & Conditions:
-                </Label>
-                <Textarea
-                  id="terms-conditions"
-                  value={termsConditions}
-                  onChange={(e) => setTermsConditions(e.target.value)}
-                  placeholder="Enter your terms and conditions..."
-                  className="min-h-[300px] border-2 resize-none"
-                />
-              </div>
-
-              <div className="space-y-3">
-                <Label htmlFor="cancellation-return" className="text-base font-semibold text-foreground">
-                  Cancellation & Return:
-                </Label>
-                <Textarea
-                  id="cancellation-return"
-                  value={cancellationReturn}
-                  onChange={(e) => setCancellationReturn(e.target.value)}
-                  placeholder="Enter your cancellation and return policy..."
-                  className="min-h-[300px] border-2 resize-none"
-                />
-              </div>
-
-              <Button 
-                type="submit" 
-                className="w-full h-14 text-lg font-semibold"
-              >
-                SUBMIT
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      </main>
     </div>
   );
 };

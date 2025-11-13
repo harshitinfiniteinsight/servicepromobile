@@ -1,559 +1,510 @@
-import { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { AppHeader } from "@/components/AppHeader";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import MobileHeader from "@/components/layout/MobileHeader";
+import EstimateCard from "@/components/cards/EstimateCard";
+import EmptyState from "@/components/cards/EmptyState";
+import PaymentModal from "@/components/modals/PaymentModal";
+import PreviewEstimateModal from "@/components/modals/PreviewEstimateModal";
+import SendEmailModal from "@/components/modals/SendEmailModal";
+import SendSMSModal from "@/components/modals/SendSMSModal";
+import ReassignEmployeeModal from "@/components/modals/ReassignEmployeeModal";
+import ShareAddressModal from "@/components/modals/ShareAddressModal";
+import { mockEstimates, mockCustomers } from "@/data/mobileMockData";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Plus, Eye, Mail, MessageSquare, DollarSign, Banknote, MapPin, UserCog, FileText, XCircle, MoreVertical, RotateCcw, Edit, History, CalendarRange, RefreshCw } from "lucide-react";
-import { mockEstimates, mockEmployees } from "@/data/mockData";
-import { SendEmailModal } from "@/components/modals/SendEmailModal";
-import { SendSMSModal } from "@/components/modals/SendSMSModal";
-import { ShareAddressModal } from "@/components/modals/ShareAddressModal";
-import { PayCashModal } from "@/components/modals/PayCashModal";
-import { InvoicePaymentModal } from "@/components/modals/InvoicePaymentModal";
-import { PreviewEstimateModal } from "@/components/modals/PreviewEstimateModal";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { Plus, Search, FileText, CheckCircle, MoreVertical, Eye, Mail, MessageSquare, Edit, MapPin, UserCog, History, X, RotateCcw, Calendar as CalendarIcon } from "lucide-react";
+import { toast } from "sonner";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
-import { cn } from "@/lib/utils";
 
 const Estimates = () => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState("active");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
-    from: undefined,
-    to: undefined,
-  });
-
-  // Apply date range from navigation state
-  useEffect(() => {
-    if (location.state?.dateRange) {
-      setDateRange(location.state.dateRange);
-      // Clear the state to prevent re-applying on re-render
-      window.history.replaceState({}, document.title);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("activate");
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedEstimate, setSelectedEstimate] = useState<{ id: string; amount: number } | null>(null);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewEstimate, setPreviewEstimate] = useState<any>(null);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [showSMSModal, setShowSMSModal] = useState(false);
+  const [showReassignModal, setShowReassignModal] = useState(false);
+  const [showShareAddressModal, setShowShareAddressModal] = useState(false);
+  const [selectedEstimateForAction, setSelectedEstimateForAction] = useState<any>(null);
+  const [deactivatedEstimates, setDeactivatedEstimates] = useState<Set<string>>(new Set());
+  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
+  const [statusFilterValue, setStatusFilterValue] = useState<string>("all");
+  
+  const filteredEstimates = mockEstimates.filter(est => {
+    const matchesSearch = est.id.toLowerCase().includes(search.toLowerCase()) ||
+                         est.customerName.toLowerCase().includes(search.toLowerCase());
+    
+    // Filter by date range
+    let matchesDateRange = true;
+    if (dateRange.from || dateRange.to) {
+      const estimateDate = new Date(est.date);
+      estimateDate.setHours(0, 0, 0, 0); // Normalize to start of day
+      
+      if (dateRange.from) {
+        const fromDate = new Date(dateRange.from);
+        fromDate.setHours(0, 0, 0, 0);
+        matchesDateRange = matchesDateRange && estimateDate >= fromDate;
+      }
+      
+      if (dateRange.to) {
+        const toDate = new Date(dateRange.to);
+        toDate.setHours(23, 59, 59, 999); // Include entire end date
+        matchesDateRange = matchesDateRange && estimateDate <= toDate;
+      }
     }
-  }, [location.state]);
-  const [emailModalOpen, setEmailModalOpen] = useState(false);
-  const [smsModalOpen, setSmsModalOpen] = useState(false);
-  const [shareAddressModalOpen, setShareAddressModalOpen] = useState(false);
-  const [reassignModalOpen, setReassignModalOpen] = useState(false);
-  const [selectedEstimate, setSelectedEstimate] = useState<any>(null);
-  const [selectedEmployee, setSelectedEmployee] = useState("");
-  const [payCashModalOpen, setPayCashModalOpen] = useState(false);
-  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-  const [selectedEstimateForPayment, setSelectedEstimateForPayment] = useState<any>(null);
-  const [previewModalOpen, setPreviewModalOpen] = useState(false);
-  const [selectedEstimateForPreview, setSelectedEstimateForPreview] = useState<any>(null);
-  const { toast } = useToast();
-
-  const filteredEstimates = mockEstimates.filter((estimate) => {
-    const matchesActive = activeTab === "active" 
-      ? estimate.isActive 
-      : !estimate.isActive;
     
-    const matchesSearch = 
-      estimate.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      estimate.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      estimate.employeeName.toLowerCase().includes(searchQuery.toLowerCase());
+    // Filter by status (All / Paid / Unpaid)
+    const matchesStatus = statusFilterValue === "all" || est.status === statusFilterValue;
     
-    // Don't apply status filter for deactivated tab
-    const matchesStatus = activeTab === "deactivated" 
-      ? true
-      : (statusFilter === "all" || 
-         (statusFilter === "paid" && estimate.status === "Paid") ||
-         (statusFilter === "open" && estimate.status === "Open"));
+    // Filter by tab
+    // Activate: Both Paid and Unpaid estimates that are NOT deactivated
+    // Deactivated: Only Unpaid estimates that ARE deactivated
+    let matchesTab = true;
+    const isDeactivated = deactivatedEstimates.has(est.id);
+    if (statusFilter === "deactivated") {
+      matchesTab = est.status === "Unpaid" && isDeactivated;
+    } else {
+      // Activate tab: exclude deactivated estimates
+      matchesTab = !isDeactivated;
+    }
     
-    const estimateDate = new Date(estimate.createdDate);
-    const matchesDateRange = 
-      (!dateRange.from || estimateDate >= dateRange.from) &&
-      (!dateRange.to || estimateDate <= dateRange.to);
-    
-    return matchesActive && matchesSearch && matchesStatus && matchesDateRange;
+    return matchesSearch && matchesDateRange && matchesStatus && matchesTab;
   });
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Paid":
-        return "bg-success/10 text-success border-success/20";
-      case "Open":
-        return "bg-warning/10 text-warning border-warning/20";
+  const handlePayNow = (estimateId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const estimate = mockEstimates.find(est => est.id === estimateId);
+    if (estimate) {
+      setSelectedEstimate({ id: estimateId, amount: estimate.amount });
+      setShowPaymentModal(true);
+    }
+  };
+
+  const handlePaymentMethodSelect = (method: string) => {
+    if (selectedEstimate) {
+      toast.success(`Processing ${method} payment for ${selectedEstimate.id}...`);
+      // Navigate to payment processing page or handle payment
+      // navigate(`/payment/${selectedEstimate.id}?method=${method}`);
+    }
+  };
+
+  const handleActivate = (estimateId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDeactivatedEstimates(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(estimateId);
+      return newSet;
+    });
+    toast.success("Estimate activated successfully");
+  };
+
+  const handleMenuAction = (action: string, estimateId: string) => {
+    switch (action) {
+      case "preview":
+        const estimate = mockEstimates.find(est => est.id === estimateId);
+        if (estimate) {
+          setPreviewEstimate(estimate);
+          setShowPreviewModal(true);
+        }
+        break;
+      case "send-email":
+        const emailEstimate = mockEstimates.find(est => est.id === estimateId);
+        if (emailEstimate) {
+          const customer = mockCustomers.find(c => c.id === emailEstimate.customerId);
+          setSelectedEstimateForAction({
+            ...emailEstimate,
+            customerEmail: customer?.email || "",
+            customerPhone: customer?.phone || "",
+            customerName: emailEstimate.customerName,
+          });
+          setShowEmailModal(true);
+        }
+        break;
+      case "send-sms":
+        const smsEstimate = mockEstimates.find(est => est.id === estimateId);
+        if (smsEstimate) {
+          const customer = mockCustomers.find(c => c.id === smsEstimate.customerId);
+          setSelectedEstimateForAction({
+            ...smsEstimate,
+            customerEmail: customer?.email || "",
+            customerPhone: customer?.phone || "",
+            customerName: smsEstimate.customerName,
+          });
+          setShowSMSModal(true);
+        }
+        break;
+      case "edit":
+        navigate(`/estimates/${estimateId}/edit`);
+        break;
+      case "share-address":
+        const shareEstimate = mockEstimates.find(est => est.id === estimateId);
+        if (shareEstimate) {
+          const customer = mockCustomers.find(c => c.id === shareEstimate.customerId);
+          setSelectedEstimateForAction({
+            ...shareEstimate,
+            jobAddress: customer?.address || "No address available",
+          });
+          setShowShareAddressModal(true);
+        }
+        break;
+      case "reassign":
+        const reassignEstimate = mockEstimates.find(est => est.id === estimateId);
+        if (reassignEstimate) {
+          setSelectedEstimateForAction({
+            ...reassignEstimate,
+            currentEmployeeId: reassignEstimate.customerId, // Using customerId as placeholder for employeeId
+          });
+          setShowReassignModal(true);
+        }
+        break;
+      case "doc-history":
+        const docEstimate = mockEstimates.find(est => est.id === estimateId);
+        if (docEstimate) {
+          // Navigate to customer profile
+          navigate(`/customers/${docEstimate.customerId}`);
+        }
+        break;
+      case "deactivate":
+        setDeactivatedEstimates(prev => new Set(prev).add(estimateId));
+        toast.success("Estimate deactivated");
+        // If we're on the activate tab and deactivate an estimate, it should disappear from view
+        // The estimate will now appear in the deactivated tab
+        break;
+      case "refund":
+        toast.success("Processing refund...");
+        break;
       default:
-        return "bg-muted text-muted-foreground";
+        break;
     }
-  };
-
-  const handleSendEmail = (estimate: any) => {
-    setSelectedEstimate(estimate);
-    setEmailModalOpen(true);
-  };
-
-  const handleSendSMS = (estimate: any) => {
-    setSelectedEstimate(estimate);
-    setSmsModalOpen(true);
-  };
-
-  const handleReassign = (estimate: any) => {
-    setSelectedEstimate(estimate);
-    setReassignModalOpen(true);
-  };
-
-  const handleReassignSubmit = () => {
-    toast({
-      title: "Employee Reassigned",
-      description: `Estimate ${selectedEstimate?.id} has been reassigned.`,
-    });
-    setReassignModalOpen(false);
-    setSelectedEmployee("");
-  };
-
-  const handlePayEstimate = (estimate: any) => {
-    setSelectedEstimateForPayment(estimate);
-    setPaymentModalOpen(true);
-  };
-
-  const handlePayCash = (estimate: any) => {
-    setSelectedEstimate(estimate);
-    setPayCashModalOpen(true);
-  };
-
-  const handleShareAddress = (estimate: any) => {
-    setSelectedEstimate(estimate);
-    setShareAddressModalOpen(true);
-  };
-
-  const handlePreview = (estimate: any) => {
-    setSelectedEstimateForPreview(estimate);
-    setPreviewModalOpen(true);
-  };
-
-  const handleEditEstimate = (estimate: any) => {
-    navigate(`/estimates/${estimate.id}/edit`);
-  };
-
-  const handleDeactivate = (estimate: any) => {
-    if (estimate.status !== "Open") {
-      toast({
-        title: "Cannot Deactivate",
-        description: "Only open estimates can be deactivated.",
-        variant: "destructive",
-      });
-      return;
-    }
-    toast({
-      title: "Estimate Deactivated",
-      description: `${estimate.id} has been deactivated.`,
-    });
-  };
-
-  const handleActivate = (estimate: any) => {
-    toast({
-      title: "Estimate Activated",
-      description: `${estimate.id} has been reactivated.`,
-    });
-  };
-
-  const handleRefund = (estimate: any) => {
-    toast({
-      title: "Refund Processing",
-      description: `Processing refund for ${estimate.id}`,
-    });
-  };
-
-  const handleDocHistory = (estimate: any) => {
-    // Navigate to customer details page
-    navigate(`/customers/${estimate.customerId || '1'}`);
   };
 
   return (
-    <div className="flex-1">
-      <AppHeader searchPlaceholder="Search estimates..." onSearchChange={setSearchQuery} />
+    <div className="h-full flex flex-col overflow-hidden">
+      <MobileHeader 
+        title="Estimates"
+        showBack={true}
+        actions={
+          <Button size="sm" onClick={() => navigate("/estimates/new")}>
+            <Plus className="h-4 w-4" />
+          </Button>
+        }
+      />
+      
+      <div className="flex-1 overflow-y-auto scrollable px-4 pb-6 space-y-4" style={{ paddingTop: 'calc(3.5rem + env(safe-area-inset-top) + 0.5rem)' }}>
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input 
+            placeholder="Search estimates..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-10"
+          />
+        </div>
 
-      <main className="px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6 animate-fade-in">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Estimates</h1>
-            <p className="text-sm sm:text-base text-muted-foreground">Manage service estimates and proposals</p>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
-            {activeTab !== "deactivated" && (
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-[140px] touch-target">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="paid">Paid</SelectItem>
-                  <SelectItem value="open">Open</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="gap-2 touch-target w-full sm:w-auto">
-                  <CalendarRange className="h-4 w-4" />
-                  <span className="hidden sm:inline">
-                    {dateRange.from ? (
-                      dateRange.to ? (
-                        <>
-                          {format(dateRange.from, "MMM dd")} - {format(dateRange.to, "MMM dd")}
-                        </>
-                      ) : (
-                        format(dateRange.from, "MMM dd, yyyy")
-                      )
-                    ) : (
-                      "Date Range"
-                    )}
-                  </span>
-                  <span className="sm:hidden">
-                    {dateRange.from ? format(dateRange.from, "MMM dd") : "Date"}
-                  </span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <div className="p-3 space-y-3">
-                  <div>
-                    <p className="text-sm font-medium mb-2">From Date</p>
-                    <Calendar
-                      mode="single"
-                      selected={dateRange.from}
-                      onSelect={(date) => setDateRange({ ...dateRange, from: date })}
-                      className="pointer-events-auto"
-                    />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium mb-2">To Date</p>
-                    <Calendar
-                      mode="single"
-                      selected={dateRange.to}
-                      onSelect={(date) => setDateRange({ ...dateRange, to: date })}
-                      disabled={(date) => dateRange.from ? date < dateRange.from : false}
-                      className="pointer-events-auto"
-                    />
-                  </div>
-                  {(dateRange.from || dateRange.to) && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full touch-target"
-                      onClick={() => setDateRange({ from: undefined, to: undefined })}
-                    >
-                      Clear Filter
-                    </Button>
-                  )}
+        {/* Filters */}
+        <div className="flex gap-2">
+          {/* Date Range Filter */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  statusFilter === "deactivated" ? "w-full" : "flex-1",
+                  "justify-start text-left font-normal h-10",
+                  !dateRange.from && !dateRange.to && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {dateRange.from ? (
+                  dateRange.to ? (
+                    <>
+                      {format(dateRange.from, "MMM dd")} - {format(dateRange.to, "MMM dd")}
+                    </>
+                  ) : (
+                    format(dateRange.from, "MMM dd")
+                  )
+                ) : (
+                  <span>Date Range</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                initialFocus
+                mode="range"
+                defaultMonth={dateRange.from}
+                selected={{ from: dateRange.from, to: dateRange.to }}
+                onSelect={(range) => {
+                  setDateRange({ from: range?.from, to: range?.to });
+                }}
+                numberOfMonths={1}
+              />
+              {(dateRange.from || dateRange.to) && (
+                <div className="p-3 border-t">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => setDateRange({ from: undefined, to: undefined })}
+                  >
+                    Clear Date Range
+                  </Button>
                 </div>
-              </PopoverContent>
-            </Popover>
-            <Button onClick={() => navigate("/estimates/new")} className="gap-2 touch-target w-full sm:w-auto">
-              <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
-              New Estimate
-            </Button>
-          </div>
+              )}
+            </PopoverContent>
+          </Popover>
+
+          {/* Status Filter - Only show in Activate tab */}
+          {statusFilter === "activate" && (
+            <Select value={statusFilterValue} onValueChange={setStatusFilterValue}>
+              <SelectTrigger className="flex-1 h-10">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="Paid">Paid</SelectItem>
+                <SelectItem value="Unpaid">Unpaid</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
         </div>
 
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
-          <Card>
-            <CardHeader>
-              <CardTitle>Total Estimates</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {mockEstimates.length}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Active Estimates</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-500">
-                {mockEstimates.filter((estimate) => estimate.isActive).length}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Pending Estimates</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-500">
-                {mockEstimates.filter((estimate) => estimate.status === "Open").length}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="active">Active</TabsTrigger>
+        {/* Status Tabs */}
+        <Tabs value={statusFilter} onValueChange={setStatusFilter}>
+          <TabsList className="w-full grid grid-cols-2">
+            <TabsTrigger value="activate">Activate</TabsTrigger>
             <TabsTrigger value="deactivated">Deactivated</TabsTrigger>
           </TabsList>
-          
-          <TabsContent value="active" className="space-y-4">
-            {filteredEstimates.length === 0 ? (
-              <Card className="p-8 text-center">
-                <p className="text-muted-foreground">No active estimates found</p>
-              </Card>
-            ) : (
-              <div className="space-y-4">
-                {filteredEstimates.map((estimate) => (
-                  <Card key={estimate.id} className="shadow-sm hover:shadow-md transition-shadow">
-                    <CardContent className="p-6">
-                      <div className="grid grid-cols-1 md:grid-cols-7 gap-4 items-center">
-                        <div>
-                          <p className="text-sm text-muted-foreground">Created Date</p>
-                          <p className="font-medium">{estimate.createdDate}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Job ID</p>
-                          <p className="font-medium">{estimate.id}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Customer Name</p>
-                          <p className="font-medium">{estimate.customerName}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Employee Name</p>
-                          <p className="font-medium">{estimate.employeeName}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Amount</p>
-                          <p className="font-medium text-lg">${estimate.amount.toLocaleString()}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Sync</p>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                            <RefreshCw className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <div className="flex items-center justify-between gap-2">
-                          <Badge className={getStatusColor(estimate.status)} variant="outline">
-                            {estimate.status.toUpperCase()}
-                          </Badge>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-56 z-50 bg-popover">
-                              <DropdownMenuItem onClick={() => handlePreview(estimate)}>
-                                <Eye className="mr-2 h-4 w-4" />
-                                Preview Estimate
-                              </DropdownMenuItem>
-                              
-                              {estimate.status === "Open" && (
-                                <>
-                                  <DropdownMenuItem onClick={() => handleSendEmail(estimate)}>
-                                    <Mail className="mr-2 h-4 w-4" />
-                                    Send Email
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleSendSMS(estimate)}>
-                                    <MessageSquare className="mr-2 h-4 w-4" />
-                                    Send SMS
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleEditEstimate(estimate)}>
-                                    <Edit className="mr-2 h-4 w-4" />
-                                    Edit Estimate
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handlePayEstimate(estimate)}>
-                                    <DollarSign className="mr-2 h-4 w-4" />
-                                    Pay Estimate
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handlePayCash(estimate)}>
-                                    <Banknote className="mr-2 h-4 w-4" />
-                                    Pay Cash
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleShareAddress(estimate)}>
-                                    <MapPin className="mr-2 h-4 w-4" />
-                                    Share Job Address
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleReassign(estimate)}>
-                                    <UserCog className="mr-2 h-4 w-4" />
-                                    Reassign Employee
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleDocHistory(estimate)}>
-                                    <History className="mr-2 h-4 w-4" />
-                                    Doc History
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleDeactivate(estimate)}>
-                                    <XCircle className="mr-2 h-4 w-4" />
-                                    Deactivate
-                                  </DropdownMenuItem>
-                                </>
-                              )}
-                              
-                              {estimate.status === "Paid" && (
-                                <DropdownMenuItem onClick={() => handleRefund(estimate)}>
-                                  <RotateCcw className="mr-2 h-4 w-4" />
-                                  Refund
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-          
-          <TabsContent value="deactivated" className="space-y-4">
-            {filteredEstimates.length === 0 ? (
-              <Card className="p-8 text-center">
-                <p className="text-muted-foreground">No deactivated estimates found</p>
-              </Card>
-            ) : (
-              <div className="space-y-4">
-                {filteredEstimates.map((estimate) => (
-                  <Card key={estimate.id} className="shadow-sm hover:shadow-md transition-shadow opacity-75">
-                    <CardContent className="p-6">
-                      <div className="grid grid-cols-1 md:grid-cols-7 gap-4 items-center">
-                        <div>
-                          <p className="text-sm text-muted-foreground">Created Date</p>
-                          <p className="font-medium">{estimate.createdDate}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Job ID</p>
-                          <p className="font-medium">{estimate.id}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Customer Name</p>
-                          <p className="font-medium">{estimate.customerName}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Employee Name</p>
-                          <p className="font-medium">{estimate.employeeName}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Amount</p>
-                          <p className="font-medium text-lg">${estimate.amount.toLocaleString()}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Sync</p>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                            <RefreshCw className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <div className="flex items-center justify-end gap-2">
+
+          <TabsContent value={statusFilter} className="mt-4 space-y-3">
+            {filteredEstimates.length > 0 ? (
+              filteredEstimates.map(estimate => (
+                <EstimateCard 
+                  key={estimate.id}
+                  estimate={estimate}
+                  onClick={() => navigate(`/estimates/${estimate.id}`)}
+                  payButton={
+                    statusFilter === "activate" && estimate.status === "Unpaid" ? (
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="h-7 w-full text-xs font-semibold touch-target whitespace-nowrap bg-primary hover:bg-primary/90 shadow-sm hover:shadow-md transition-all"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handlePayNow(estimate.id, e);
+                        }}
+                      >
+                        Pay
+                      </Button>
+                    ) : undefined
+                  }
+                  actionButtons={
+                    statusFilter === "activate" && estimate.status === "Unpaid" ? (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
                           <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleActivate(estimate)}
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 touch-target"
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            Activate
+                            <MoreVertical className="h-4 w-4" />
                           </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56">
+                          <DropdownMenuItem onClick={() => handleMenuAction("preview", estimate.id)}>
+                            <Eye className="h-4 w-4 mr-2" />
+                            Preview estimate
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleMenuAction("send-email", estimate.id)}>
+                            <Mail className="h-4 w-4 mr-2" />
+                            Send email
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleMenuAction("send-sms", estimate.id)}>
+                            <MessageSquare className="h-4 w-4 mr-2" />
+                            Send SMS
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleMenuAction("edit", estimate.id)}>
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit estimate
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleMenuAction("share-address", estimate.id)}>
+                            <MapPin className="h-4 w-4 mr-2" />
+                            Share job address
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleMenuAction("reassign", estimate.id)}>
+                            <UserCog className="h-4 w-4 mr-2" />
+                            Reassign employee
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleMenuAction("doc-history", estimate.id)}>
+                            <History className="h-4 w-4 mr-2" />
+                            Doc history
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => handleMenuAction("deactivate", estimate.id)}
+                            className="text-destructive"
+                          >
+                            <X className="h-4 w-4 mr-2" />
+                            Deactivate
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : statusFilter === "activate" && estimate.status === "Paid" ? (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 touch-target"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56">
+                          <DropdownMenuItem onClick={() => handleMenuAction("preview", estimate.id)}>
+                            <Eye className="h-4 w-4 mr-2" />
+                            Preview
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleMenuAction("refund", estimate.id)}>
+                            <RotateCcw className="h-4 w-4 mr-2" />
+                            Refund
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : statusFilter === "deactivated" && estimate.status === "Unpaid" ? (
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="h-7 px-3 text-xs touch-target"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleActivate(estimate.id, e);
+                        }}
+                      >
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Activate
+                      </Button>
+                    ) : undefined
+                  }
+                />
+              ))
+            ) : (
+              <EmptyState
+                icon={<FileText className="h-10 w-10 text-muted-foreground" />}
+                title="No estimates found"
+                description="Try adjusting your search or filters"
+                actionLabel="Create Estimate"
+                onAction={() => navigate("/estimates/new")}
+              />
             )}
           </TabsContent>
         </Tabs>
-      </main>
+      </div>
 
-      <SendEmailModal
-        open={emailModalOpen}
-        onOpenChange={setEmailModalOpen}
-        customerEmail={selectedEstimate?.customerEmail || ""}
-      />
+      {/* Payment Modal */}
+      {selectedEstimate && (
+        <PaymentModal
+          isOpen={showPaymentModal}
+          onClose={() => {
+            setShowPaymentModal(false);
+            setSelectedEstimate(null);
+          }}
+          amount={selectedEstimate.amount}
+          onPaymentMethodSelect={handlePaymentMethodSelect}
+        />
+      )}
 
-      <SendSMSModal
-        open={smsModalOpen}
-        onOpenChange={setSmsModalOpen}
-        customerName={selectedEstimate?.customerName || ""}
-        phoneNumber={selectedEstimate?.customerPhone || ""}
-      />
+      {/* Preview Estimate Modal */}
+      {previewEstimate && (
+        <PreviewEstimateModal
+          isOpen={showPreviewModal}
+          onClose={() => {
+            setShowPreviewModal(false);
+            setPreviewEstimate(null);
+          }}
+          estimate={previewEstimate}
+          onAction={(action) => {
+            if (action === "pay-now") {
+              setShowPreviewModal(false);
+              setSelectedEstimate({ id: previewEstimate.id, amount: previewEstimate.amount });
+              setShowPaymentModal(true);
+            } else if (action === "edit") {
+              navigate(`/estimates/${previewEstimate.id}/edit`);
+              setShowPreviewModal(false);
+            } else {
+              handleMenuAction(action, previewEstimate.id);
+            }
+          }}
+        />
+      )}
 
-      <ShareAddressModal
-        open={shareAddressModalOpen}
-        onOpenChange={setShareAddressModalOpen}
-        jobAddress={selectedEstimate?.address || "123 Main Street, City, State"}
-        jobId={selectedEstimate?.id || ""}
-      />
+      {/* Send Email Modal */}
+      {selectedEstimateForAction && (
+        <SendEmailModal
+          isOpen={showEmailModal}
+          onClose={() => {
+            setShowEmailModal(false);
+            setSelectedEstimateForAction(null);
+          }}
+          customerEmail={selectedEstimateForAction.customerEmail}
+          customerName={selectedEstimateForAction.customerName}
+        />
+      )}
 
-      <PayCashModal
-        open={payCashModalOpen}
-        onOpenChange={setPayCashModalOpen}
-        orderAmount={selectedEstimate?.amount || 0}
-        orderId={selectedEstimate?.id || ""}
-      />
+      {/* Send SMS Modal */}
+      {selectedEstimateForAction && (
+        <SendSMSModal
+          isOpen={showSMSModal}
+          onClose={() => {
+            setShowSMSModal(false);
+            setSelectedEstimateForAction(null);
+          }}
+          phoneNumber={selectedEstimateForAction.customerPhone}
+          customerName={selectedEstimateForAction.customerName}
+        />
+      )}
 
+      {/* Reassign Employee Modal */}
+      {selectedEstimateForAction && (
+        <ReassignEmployeeModal
+          isOpen={showReassignModal}
+          onClose={() => {
+            setShowReassignModal(false);
+            setSelectedEstimateForAction(null);
+          }}
+          currentEmployeeId={selectedEstimateForAction.currentEmployeeId}
+          estimateId={selectedEstimateForAction.id}
+        />
+      )}
 
-      <InvoicePaymentModal
-        open={paymentModalOpen}
-        onOpenChange={setPaymentModalOpen}
-        invoice={selectedEstimateForPayment}
-      />
-
-      <PreviewEstimateModal
-        open={previewModalOpen}
-        onOpenChange={(open) => {
-          setPreviewModalOpen(open);
-          if (!open) setSelectedEstimateForPreview(null);
-        }}
-        estimate={selectedEstimateForPreview}
-        onEdit={(estimate) => {
-          navigate(`/estimates/${estimate.id}/edit`);
-        }}
-        onPayNow={(estimate) => {
-          setSelectedEstimateForPayment(estimate);
-          setPaymentModalOpen(true);
-        }}
-      />
-
-      <Dialog open={reassignModalOpen} onOpenChange={setReassignModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reassign Employee</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Select New Employee</Label>
-              <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose employee" />
-                </SelectTrigger>
-                <SelectContent className="z-50 bg-popover">
-                  {mockEmployees
-                    .filter((emp) => emp.status === "Active")
-                    .map((employee) => (
-                      <SelectItem key={employee.id} value={employee.id}>
-                        {employee.name} - {employee.role}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setReassignModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleReassignSubmit}>Reassign</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Share Address Modal */}
+      {selectedEstimateForAction && (
+        <ShareAddressModal
+          isOpen={showShareAddressModal}
+          onClose={() => {
+            setShowShareAddressModal(false);
+            setSelectedEstimateForAction(null);
+          }}
+          jobAddress={selectedEstimateForAction.jobAddress}
+          estimateId={selectedEstimateForAction.id}
+        />
+      )}
     </div>
   );
 };

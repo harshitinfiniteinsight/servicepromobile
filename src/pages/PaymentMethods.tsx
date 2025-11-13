@@ -1,178 +1,92 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { AppHeader } from "@/components/AppHeader";
-import { Card, CardContent } from "@/components/ui/card";
+import MobileHeader from "@/components/layout/MobileHeader";
 import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, DollarSign, CreditCard, Landmark, Smartphone, Banknote } from "lucide-react";
+import { CreditCard, DollarSign, Building2, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const PaymentMethods = () => {
-  const navigate = useNavigate();
-  const [hasChanges, setHasChanges] = useState(false);
-  
-  const [paymentMethods, setPaymentMethods] = useState({
-    creditDebit: true,
-    bankACH: false,
-    tapToPay: true,
-    manualCardEntry: true,
-    otherPaymentMethods: false,
+  const [methods, setMethods] = useState({
+    cash: true,
+    creditCard: true,
+    ach: true,
+    check: true,
   });
 
-  const handleToggle = (key: keyof typeof paymentMethods) => {
-    setPaymentMethods(prev => ({ ...prev, [key]: !prev[key] }));
-    setHasChanges(true);
-  };
+  const paymentMethods = [
+    { id: "cash", label: "Cash", icon: DollarSign, enabled: methods.cash },
+    { id: "creditCard", label: "Credit Card", icon: CreditCard, enabled: methods.creditCard },
+    { id: "ach", label: "ACH Transfer", icon: Building2, enabled: methods.ach },
+    { id: "check", label: "Check", icon: Check, enabled: methods.check },
+  ];
 
-  const handleSave = () => {
-    setHasChanges(false);
-    // Add save logic here
+  const toggleMethod = (methodId: keyof typeof methods) => {
+    setMethods(prev => ({
+      ...prev,
+      [methodId]: !prev[methodId],
+    }));
   };
 
   return (
-    <div className="flex-1">
-      <AppHeader searchPlaceholder="Search..." />
+    <div className="h-full flex flex-col overflow-hidden">
+      <MobileHeader title="Payment Methods" showBack={true} />
       
-      <main className="px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6 animate-fade-in">
-        <div className="flex items-center gap-4 mb-6">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate("/settings")}
-            className="rounded-full"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
-            Payment Methods
-          </h1>
-        </div>
-
-        <div className="max-w-4xl space-y-6">
-          <p className="text-sm text-muted-foreground">
-            Changes made here will apply to all future invoices and payments. You can still edit these values on individual invoices.
-          </p>
-
-          {/* Customer self-checkout */}
-          <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-foreground">Customer self-checkout</h2>
-            
-            <Card>
-              <CardContent className="p-0">
-                <div className="flex items-center justify-between p-4 border-b">
-                  <div className="flex items-center gap-4">
-                    <div className="p-2 rounded-lg bg-muted">
-                      <CreditCard className="h-6 w-6" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-medium text-foreground">Credit and Debit cards</h3>
-                      <p className="text-sm text-muted-foreground">2.5% fee per payment</p>
-                      <p className="text-xs text-muted-foreground">Available on payments between $0.50 - $1,000</p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={paymentMethods.creditDebit}
-                    onCheckedChange={() => handleToggle("creditDebit")}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between p-4">
-                  <div className="flex items-center gap-4">
-                    <div className="p-2 rounded-lg bg-muted">
-                      <Landmark className="h-6 w-6" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-medium text-foreground">Bank - ACH Transfer</h3>
-                      <p className="text-sm text-muted-foreground">$1.00 fee per payment</p>
-                      <p className="text-xs text-muted-foreground">Available on payments between $1 - $1,000</p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={paymentMethods.bankACH}
-                    onCheckedChange={() => handleToggle("bankACH")}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Assisted checkout */}
-          <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-foreground">Assisted checkout</h2>
-            
-            <Card>
-              <CardContent className="p-0">
-                <div className="flex items-center justify-between p-4 border-b">
-                  <div className="flex items-center gap-4">
-                    <div className="p-2 rounded-lg bg-muted">
-                      <Smartphone className="h-6 w-6" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-medium text-foreground">Tap to Pay</h3>
-                      <p className="text-sm text-muted-foreground">2.5% fee per payment</p>
-                      <p className="text-xs text-muted-foreground">Available on payments between $0.50 - $1,000</p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={paymentMethods.tapToPay}
-                    onCheckedChange={() => handleToggle("tapToPay")}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between p-4">
-                  <div className="flex items-center gap-4">
-                    <div className="p-2 rounded-lg bg-muted">
-                      <CreditCard className="h-6 w-6" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-medium text-foreground">Manual card entry</h3>
-                      <p className="text-sm text-muted-foreground">2.9% + 20.0¢ fee per payment</p>
-                      <p className="text-xs text-muted-foreground">Available on payments between $0.50 - $1,000</p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={paymentMethods.manualCardEntry}
-                    onCheckedChange={() => handleToggle("manualCardEntry")}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Record Payments Manually */}
-          <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-foreground">Record Payments Manually</h2>
-            
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <h3 className="font-medium text-foreground mb-1">Other Payment Methods</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Record cash, check, or other payments received.
-                    </p>
-                  </div>
-                  <Switch
-                    checked={paymentMethods.otherPaymentMethods}
-                    onCheckedChange={() => handleToggle("otherPaymentMethods")}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {hasChanges && (
-            <div className="sticky bottom-6 flex justify-center">
-              <Button
-                onClick={handleSave}
-                size="lg"
-                className="shadow-lg"
-              >
-                Save Changes
-              </Button>
+      <div className="flex-1 overflow-y-auto scrollable pt-14 px-4 pb-6 space-y-4">
+        {/* Info */}
+        <div className="p-4 rounded-xl bg-primary/10 border border-primary/20">
+          <div className="flex items-start gap-3">
+            <CreditCard className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="font-semibold mb-1">Payment Methods</h3>
+              <p className="text-sm text-muted-foreground">
+                Enable or disable payment methods available to customers.
+              </p>
             </div>
-          )}
+          </div>
         </div>
-      </main>
+
+        {/* Payment Methods List */}
+        <div className="space-y-2">
+          {paymentMethods.map(method => {
+            const Icon = method.icon;
+            return (
+              <div
+                key={method.id}
+                className={cn(
+                  "p-4 rounded-xl border flex items-center justify-between",
+                  method.enabled ? "bg-card" : "bg-muted/30"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "w-10 h-10 rounded-lg flex items-center justify-center",
+                    method.enabled ? "bg-primary/10" : "bg-muted"
+                  )}>
+                    <Icon className={cn(
+                      "h-5 w-5",
+                      method.enabled ? "text-primary" : "text-muted-foreground"
+                    )} />
+                  </div>
+                  <Label htmlFor={method.id} className="font-medium cursor-pointer">
+                    {method.label}
+                  </Label>
+                </div>
+                <Switch
+                  id={method.id}
+                  checked={method.enabled}
+                  onCheckedChange={() => toggleMethod(method.id as keyof typeof methods)}
+                />
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Add Custom Method */}
+        <Button variant="outline" className="w-full">
+          Add Custom Payment Method
+        </Button>
+      </div>
     </div>
   );
 };

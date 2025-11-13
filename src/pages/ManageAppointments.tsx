@@ -1,595 +1,623 @@
-import { useState, useEffect } from "react";
-import { AppHeader } from "@/components/AppHeader";
+import { useMemo, useState, useEffect } from "react";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
+import MobileHeader from "@/components/layout/MobileHeader";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Calendar as CalendarIcon, List, Edit, StickyNote, Share2 } from "lucide-react";
-import { mockEmployees } from "@/data/mockData";
-import { useNavigate, useLocation } from "react-router-dom";
-import { cn } from "@/lib/utils";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { AddNoteModal } from "@/components/modals/AddNoteModal";
-import { ShareAppointmentModal } from "@/components/modals/ShareAppointmentModal";
-import { AppointmentDetailsModal } from "@/components/modals/AppointmentDetailsModal";
-import { EditAppointmentModal } from "@/components/modals/EditAppointmentModal";
-import { useToast } from "@/hooks/use-toast";
+import { mockAppointments } from "@/data/mobileMockData";
+import {
+  Plus,
+  Calendar,
+  Clock,
+  User,
+  UserCheck,
+  ChevronLeft,
+  ChevronRight,
+  Edit3,
+  FileText,
+  Share2,
+  Ban,
+  Circle,
+  Send,
+  BookmarkCheck,
+  Trash2,
+  UserPlus,
+  Download,
+  MoreVertical,
+  Check,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import ShareAppointmentModal from "@/components/modals/ShareAppointmentModal";
+import AppointmentDetailsModal from "@/components/modals/AppointmentDetailsModal";
+import AddNoteModal from "@/components/modals/AddNoteModal";
 
 const ManageAppointments = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { toast } = useToast();
-  const [selectedEmployee, setSelectedEmployee] = useState("all");
-  const [calendarView, setCalendarView] = useState<"month" | "week" | "day">("month");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const todayISO = useMemo(() => toISODate(new Date()), []);
+  const [selectedDate, setSelectedDate] = useState(todayISO);
+  const [focusedMonth, setFocusedMonth] = useState(() => {
+    const date = new Date();
+    date.setDate(1);
+    return date;
+  });
+  
+  // Get view from URL params or default to calendar
+  const viewFromUrl = searchParams.get("view") as "calendar" | "list" | null;
+  const [viewMode, setViewMode] = useState<"calendar" | "list">(viewFromUrl || "calendar");
 
-  // Apply filters from navigation state
+  // Initialize URL param if not present
   useEffect(() => {
-    if (location.state) {
-      if (location.state.calendarView) {
-        setCalendarView(location.state.calendarView);
-      }
-      if (location.state.selectedDate) {
-        // Set the current date based on selectedDate
-        // The calendar will filter appointments for this date
-      }
-      // Clear the state to prevent re-applying on re-render
-      window.history.replaceState({}, document.title);
+    if (!viewFromUrl) {
+      setSearchParams({ view: viewMode }, { replace: true });
     }
-  }, [location.state]);
+  }, [viewFromUrl, viewMode, setSearchParams]);
+
+  // Sync view mode with URL params
+  useEffect(() => {
+    if (viewFromUrl && viewFromUrl !== viewMode) {
+      setViewMode(viewFromUrl);
+    }
+  }, [viewFromUrl, viewMode]);
+
+  // Update URL when view mode changes
+  const handleViewModeChange = (value: "calendar" | "list") => {
+    setViewMode(value);
+    setSearchParams({ view: value });
+  };
   const [selectedAppointments, setSelectedAppointments] = useState<string[]>([]);
-  const [addNoteOpen, setAddNoteOpen] = useState(false);
-  const [shareAppointmentOpen, setShareAppointmentOpen] = useState(false);
-  const [appointmentDetailsOpen, setAppointmentDetailsOpen] = useState(false);
-  const [editAppointmentOpen, setEditAppointmentOpen] = useState(false);
-  const [currentAppointmentId, setCurrentAppointmentId] = useState("");
-  const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
-  const [editAppointmentData, setEditAppointmentData] = useState<any>(null);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [singleAppointmentToShare, setSingleAppointmentToShare] = useState<typeof mockAppointments[0] | null>(null);
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState<typeof mockAppointments[0] | null>(null);
+  const [addNoteModalOpen, setAddNoteModalOpen] = useState(false);
+  const [selectedAppointmentForNote, setSelectedAppointmentForNote] = useState<string | null>(null);
+  const [appointmentNotes, setAppointmentNotes] = useState<Record<string, Array<{ id: string; text: string; createdBy: string; createdAt: string }>>>({});
+  
+  // Get appointments for selected date
+  const dayAppointments = mockAppointments.filter(apt => apt.date === selectedDate);
+  
+  const appointmentsByDate = useMemo(() => {
+    return mockAppointments.reduce<Record<string, typeof mockAppointments>>((acc, appointment) => {
+      acc[appointment.date] = acc[appointment.date] ? [...acc[appointment.date], appointment] : [appointment];
+      return acc;
+    }, {});
+  }, []);
 
-  const initialAppointments = [
-    {
-      id: "APT-001",
-      customerName: "Sarah Johnson",
-      subject: "HVAC Maintenance Check",
-      date: "2025-10-27",
-      startTime: "09:00 AM",
-      endTime: "10:00 AM",
-      employee: "John Doe",
-      status: "Active" as const,
-    },
-    {
-      id: "APT-002",
-      customerName: "Mike Williams",
-      subject: "Plumbing Consultation",
-      date: "2025-10-27",
-      startTime: "11:00 AM",
-      endTime: "12:00 PM",
-      employee: "Jane Smith",
-      status: "Active" as const,
-    },
-    {
-      id: "APT-003",
-      customerName: "Emily Davis",
-      subject: "Electrical Inspection",
-      date: "2025-10-27",
-      startTime: "02:00 PM",
-      endTime: "03:30 PM",
-      employee: "John Doe",
-      status: "Deactivated" as const,
-    },
-    {
-      id: "APT-004",
-      customerName: "Robert Brown",
-      subject: "AC Unit Installation",
-      date: "2025-10-27",
-      startTime: "04:00 PM",
-      endTime: "05:30 PM",
-      employee: "Mike Johnson",
-      status: "Active" as const,
-    },
-    {
-      id: "APT-005",
-      customerName: "Jessica Wilson",
-      subject: "Water Heater Repair",
-      date: "2025-10-28",
-      startTime: "08:00 AM",
-      endTime: "09:00 AM",
-      employee: "Jane Smith",
-      status: "Active" as const,
-    },
-    {
-      id: "APT-006",
-      customerName: "David Martinez",
-      subject: "Furnace Maintenance",
-      date: "2025-10-28",
-      startTime: "10:00 AM",
-      endTime: "11:30 AM",
-      employee: "John Doe",
-      status: "Active" as const,
-    },
-    {
-      id: "APT-007",
-      customerName: "Lisa Anderson",
-      subject: "Circuit Breaker Replacement",
-      date: "2025-10-28",
-      startTime: "01:00 PM",
-      endTime: "02:30 PM",
-      employee: "Mike Johnson",
-      status: "Deactivated" as const,
-    },
-    {
-      id: "APT-008",
-      customerName: "James Taylor",
-      subject: "Duct Cleaning Service",
-      date: "2025-10-28",
-      startTime: "03:30 PM",
-      endTime: "05:00 PM",
-      employee: "John Doe",
-      status: "Active" as const,
-    },
-  ];
+  const activeAppointmentIds = useMemo(
+    () => mockAppointments.filter(apt => apt.status.toLowerCase() === "confirmed").map(apt => apt.id),
+    []
+  );
 
-  const [appointments, setAppointments] = useState(initialAppointments);
+  const calendarDays = useMemo(() => {
+    return generateCalendarDays(focusedMonth, todayISO);
+  }, [focusedMonth, todayISO]);
 
-  const handleToggleAppointmentStatus = (appointmentId: string) => {
-    setAppointments(appointments.map(apt => {
-      if (apt.id === appointmentId) {
-        const newStatus = apt.status === "Active" ? "Deactivated" : "Active";
-        toast({
-          title: `Appointment ${newStatus}`,
-          description: `The appointment has been ${newStatus.toLowerCase()} successfully.`,
-        });
-        return { ...apt, status: newStatus as "Active" | "Deactivated" };
-      }
-      return apt;
-    }));
-  };
+  const sortedAppointments = [...mockAppointments].sort((a, b) => {
+    if (a.date === b.date) {
+      return new Date(`1970-01-01T${convertTo24Hour(a.time)}`).getTime() - new Date(`1970-01-01T${convertTo24Hour(b.time)}`).getTime();
+    }
+    return a.date.localeCompare(b.date);
+  });
 
-  const handleAppointmentClick = (appointment: any) => {
-    setSelectedAppointment(appointment);
-    setAppointmentDetailsOpen(true);
-  };
+  function getTimeRange(startTime: string, duration?: string) {
+    if (!duration) {
+      return startTime;
+    }
 
-  const handleEditAppointment = (appointmentId: string, data: any) => {
-    setAppointments(appointments.map(apt => {
-      if (apt.id === appointmentId) {
-        return { ...apt, ...data };
-      }
-      return apt;
-    }));
-  };
+    const startDate = parseTime(startTime);
+    if (!startDate) {
+      return startTime;
+    }
+
+    const minutesToAdd = parseDurationToMinutes(duration);
+    if (minutesToAdd === 0) {
+      return startTime;
+    }
+
+    const endDate = new Date(startDate.getTime() + minutesToAdd * 60000);
+    return `${startTime} - ${formatTo12Hour(endDate)}`;
+  }
+
+  function convertTo24Hour(time: string) {
+    const [timePart, modifier] = time.split(" ");
+    let [hours, minutes] = timePart.split(":");
+
+    if (hours === "12") {
+      hours = "00";
+    }
+
+    if (modifier === "PM") {
+      hours = String(parseInt(hours, 10) + 12);
+    }
+
+    return `${hours.padStart(2, "0")}:${minutes}`;
+  }
+
+  function parseTime(time: string) {
+    try {
+      const normalized = convertTo24Hour(time);
+      return new Date(`1970-01-01T${normalized}:00`);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function parseDurationToMinutes(duration: string) {
+    const match = duration.toLowerCase().match(/(\d+(\.\d+)?)\s*(hour|hr|hrs|minute|min|day)/);
+    if (!match) return 0;
+
+    const value = parseFloat(match[1]);
+    const unit = match[3];
+
+    if (unit.startsWith("hour") || unit.startsWith("hr")) {
+      return Math.round(value * 60);
+    }
+
+    if (unit.startsWith("min")) {
+      return Math.round(value);
+    }
+
+    if (unit.startsWith("day")) {
+      return Math.round(value * 24 * 60);
+    }
+
+    return 0;
+  }
+
+  function formatTo12Hour(date: Date) {
+    let hours = date.getHours();
+    const minutes = date.getMinutes();
+    const suffix = hours >= 12 ? "PM" : "AM";
+    hours = hours % 12;
+    if (hours === 0) hours = 12;
+    return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")} ${suffix}`;
+  }
+
+  function handleSelectDate(dateISO: string) {
+    setSelectedDate(dateISO);
+    const newFocus = new Date(dateISO);
+    newFocus.setDate(1);
+    setFocusedMonth(newFocus);
+  }
+
+  function handleMonthChange(direction: "prev" | "next") {
+    const newMonth = new Date(focusedMonth);
+    newMonth.setMonth(newMonth.getMonth() + (direction === "next" ? 1 : -1));
+    setFocusedMonth(newMonth);
+    handleSelectDate(toISODate(new Date(newMonth.getFullYear(), newMonth.getMonth(), 1)));
+  }
 
   return (
-    <div className="flex-1">
-      <AppHeader searchPlaceholder="Search appointments..." />
-
-      <main className="px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6 animate-fade-in">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Manage Appointments</h1>
-            <p className="text-sm sm:text-base text-muted-foreground">View and manage all appointments</p>
-          </div>
-          <Button 
-            onClick={() => navigate("/appointments/add")} 
-            className="gap-2 w-full sm:w-auto shadow-md hover:shadow-lg transition-all"
-          >
+    <div className="h-full flex flex-col overflow-hidden">
+      <MobileHeader 
+        title="Appointments"
+        showBack={true}
+        actions={
+          <Button size="sm" onClick={() => navigate(`/appointments/new?fromView=${viewMode}`)}>
             <Plus className="h-4 w-4" />
-            <span className="text-sm">Add Appointment</span>
           </Button>
-        </div>
+        }
+      />
+      
+      <div className="flex-1 overflow-y-auto scrollable" style={{ paddingTop: 'calc(3.5rem + env(safe-area-inset-top) + 0.5rem)' }}>
+        <Tabs value={viewMode} onValueChange={(value) => handleViewModeChange(value as "calendar" | "list")} className="flex flex-col h-full">
+          <div className="px-4 pt-4 pb-2">
+            <TabsList className="grid grid-cols-2 w-full bg-muted/40">
+              <TabsTrigger value="calendar" className="text-sm">Calendar View</TabsTrigger>
+              <TabsTrigger value="list" className="text-sm">List View</TabsTrigger>
+            </TabsList>
+          </div>
 
-        <Tabs defaultValue="calendar" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 h-auto p-1 bg-muted">
-            <TabsTrigger value="calendar" className="gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm py-2.5">
-              <CalendarIcon className="h-4 w-4" />
-              <span className="text-xs sm:text-sm">Calendar View</span>
-            </TabsTrigger>
-            <TabsTrigger value="list" className="gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm py-2.5">
-              <List className="h-4 w-4" />
-              <span className="text-xs sm:text-sm">Appointment List</span>
-            </TabsTrigger>
-          </TabsList>
+          <TabsContent value="calendar" className="flex-1 outline-none data-[state=inactive]:hidden">
+            <div className="px-4">
+              <div className="flex items-center justify-between py-3">
+                <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => handleMonthChange("prev")}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <div className="text-center">
+                  <p className="text-base font-semibold">
+                    {focusedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Tap a date to view details
+                  </p>
+                </div>
+                <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => handleMonthChange("next")}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
 
-          {/* Calendar View Tab */}
-          <TabsContent value="calendar" className="space-y-4 mt-6">
-            <div className="flex flex-col sm:flex-row gap-3">
-              <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
-                <SelectTrigger className="w-full sm:w-48">
-                  <SelectValue placeholder="Select Employee" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Employees</SelectItem>
-                  {mockEmployees.map((emp) => (
-                    <SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="grid grid-cols-7 gap-2 text-xs font-medium text-muted-foreground py-2">
+                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => (
+                  <div key={day} className="text-center">{day}</div>
+                ))}
+              </div>
 
-              <div className="flex gap-2">
-                <Button
-                  variant={calendarView === "month" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setCalendarView("month")}
-                  className="flex-1 sm:flex-initial"
-                >
-                  Month
-                </Button>
-                <Button
-                  variant={calendarView === "week" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setCalendarView("week")}
-                  className="flex-1 sm:flex-initial"
-                >
-                  Week
-                </Button>
-                <Button
-                  variant={calendarView === "day" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setCalendarView("day")}
-                  className="flex-1 sm:flex-initial"
-                >
-                  Day
-                </Button>
+              <div className="grid grid-cols-7 gap-2 pb-4">
+                {calendarDays.map(({ date, iso, isCurrentMonth, isToday }) => {
+                  const isSelected = iso === selectedDate;
+                  const appointments = appointmentsByDate[iso] ?? [];
+                  const hasAppointments = appointments.length > 0;
+                  const firstAppointment = appointments[0];
+                  const remainingCount = appointments.length - 1;
+
+                  return (
+                    <button
+                      key={iso}
+                      onClick={() => handleSelectDate(iso)}
+                      className={cn(
+                        "flex flex-col items-center justify-center text-center border rounded-xl p-1 h-16 w-full transition-all overflow-hidden",
+                        hasAppointments && "border-primary/25 shadow-sm",
+                        isSelected && "border-primary ring-2 ring-primary/20 bg-primary/5",
+                        !isCurrentMonth && "bg-muted/30 text-muted-foreground border-gray-200"
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "text-sm font-medium leading-tight",
+                          isSelected ? "text-primary" : "text-gray-900",
+                          !isCurrentMonth && "text-muted-foreground"
+                        )}
+                      >
+                        {date.getDate()}
+                      </span>
+                      {hasAppointments && firstAppointment && (
+                        <span
+                          className="text-[10px] text-gray-600 truncate w-full px-0.5 leading-tight mt-0.5 cursor-pointer hover:text-primary transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedAppointment(firstAppointment);
+                            setDetailsModalOpen(true);
+                          }}
+                        >
+                          {firstAppointment.service}
+                        </span>
+                      )}
+                      {remainingCount > 0 && (
+                        <span className="text-[9px] font-semibold text-primary mt-0.5">
+                          +{remainingCount} more
+                        </span>
+                      )}
+                      {isToday && !hasAppointments && (
+                        <span className="inline-flex items-center rounded-full bg-primary/10 px-1 py-0.5 text-[8px] font-semibold uppercase text-primary mt-0.5">
+                          Today
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            {/* Calendar Views */}
-            {calendarView === "month" && (
-              <Card className="border border-border bg-card shadow-md">
-                <CardContent className="p-4">
-                  <div className="grid grid-cols-7 gap-2">
-                    {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-                      <div key={day} className="text-center text-xs font-semibold text-muted-foreground p-2">
-                        {day}
-                      </div>
-                    ))}
-                    {Array.from({ length: 35 }, (_, i) => {
-                      const currentDate = new Date(2025, 9, 27); // Oct 27, 2025 (month is 0-indexed)
-                      const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-                      const startDate = new Date(firstDayOfMonth);
-                      startDate.setDate(startDate.getDate() - startDate.getDay());
-                      
-                      const cellDate = new Date(startDate);
-                      cellDate.setDate(cellDate.getDate() + i);
-                      
-                      const dateStr = cellDate.toISOString().split('T')[0];
-                      const dayAppointments = appointments.filter(apt => apt.date === dateStr);
-                      const isCurrentMonth = cellDate.getMonth() === currentDate.getMonth();
-                      const isToday = dateStr === currentDate.toISOString().split('T')[0];
-                      
-                      return (
-                        <div
-                          key={i}
-                          className={cn(
-                            "min-h-24 p-2 rounded-lg border transition-all cursor-pointer",
-                            isCurrentMonth ? "bg-card border-border hover:shadow-md" : "bg-muted/30 border-muted",
-                            isToday && "ring-2 ring-primary"
-                          )}
-                        >
-                          <div className={cn(
-                            "text-xs font-semibold mb-1",
-                            isToday ? "text-primary" : isCurrentMonth ? "text-foreground" : "text-muted-foreground"
-                          )}>
-                            {cellDate.getDate()}
-                          </div>
-                          {dayAppointments.slice(0, 3).map((apt) => (
-                            <div 
-                              key={apt.id} 
-                              className="text-xs p-1 mb-1 bg-primary/10 rounded border border-primary/20 truncate hover:bg-primary/20 cursor-pointer transition-colors"
-                              onClick={() => handleAppointmentClick(apt)}
-                            >
-                              <div className="font-medium">{apt.startTime}</div>
-                              <div className="truncate text-muted-foreground">{apt.subject}</div>
-                            </div>
-                          ))}
-                          {dayAppointments.length > 3 && (
-                            <div className="text-xs font-medium text-primary">+{dayAppointments.length - 3} more</div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {calendarView === "week" && (
-              <Card className="border border-border bg-card shadow-md">
-                <CardContent className="p-4">
-                  <div className="grid grid-cols-1 lg:grid-cols-7 gap-3">
-                    {Array.from({ length: 7 }, (_, dayIndex) => {
-                      const weekStart = new Date(2025, 9, 27); // Oct 27, 2025
-                      weekStart.setDate(weekStart.getDate() - weekStart.getDay() + dayIndex);
-                      
-                      const dateStr = weekStart.toISOString().split('T')[0];
-                      const dayAppointments = appointments.filter(apt => apt.date === dateStr);
-                      const isToday = dateStr === new Date(2025, 9, 27).toISOString().split('T')[0];
-                      
-                      return (
-                        <div key={dayIndex} className={cn(
-                          "border rounded-lg p-3 min-h-[400px]",
-                          isToday ? "border-primary bg-primary/5" : "border-border"
-                        )}>
-                          <h3 className={cn(
-                            "font-bold text-sm mb-3 pb-2 border-b",
-                            isToday ? "text-primary border-primary/20" : "text-foreground border-border"
-                          )}>
-                            {weekStart.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                          </h3>
-                          <div className="space-y-2">
-                            {dayAppointments.length > 0 ? (
-                              dayAppointments.map((apt) => (
-                                <div 
-                                  key={apt.id} 
-                                  className="p-2 bg-primary/10 rounded-lg border border-primary/20 hover:bg-primary/20 transition-colors cursor-pointer"
-                                  onClick={() => handleAppointmentClick(apt)}
-                                >
-                                  <div className="text-xs font-bold text-primary mb-1">{apt.startTime}</div>
-                                  <div className="text-xs font-semibold text-foreground truncate">{apt.subject}</div>
-                                  <div className="text-xs text-muted-foreground truncate">{apt.customerName}</div>
-                                  <div className="text-xs text-muted-foreground mt-1">{apt.employee}</div>
-                                </div>
-                              ))
-                            ) : (
-                              <p className="text-xs text-muted-foreground italic text-center mt-8">No appointments</p>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {calendarView === "day" && (
-              <Card className="border border-border bg-card shadow-md">
-                <CardContent className="p-4">
-                  <div className="mb-4 pb-3 border-b">
-                    <h2 className="text-xl font-bold text-foreground">
-                      {new Date(2025, 9, 27).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-                    </h2>
-                  </div>
-                  <div className="space-y-1 max-h-[600px] overflow-y-auto">
-                    {Array.from({ length: 24 }, (_, hour) => {
-                      const today = new Date(2025, 9, 27).toISOString().split('T')[0];
-                      const hourAppointments = appointments.filter(apt => {
-                        const aptHour = parseInt(apt.startTime.split(':')[0]);
-                        return apt.date === today && aptHour === hour;
-                      });
-                      
-                      const isBusinessHour = hour >= 8 && hour <= 17;
-                      
-                      return (
-                        <div key={hour} className={cn(
-                          "flex gap-3 p-3 rounded-lg border transition-all",
-                          hourAppointments.length > 0 ? "bg-primary/5 border-primary/20 hover:shadow-md" : "bg-muted/10 border-border",
-                          !isBusinessHour && "opacity-50"
-                        )}>
-                          <div className="w-24 text-base font-bold text-foreground">
-                            {hour.toString().padStart(2, '0')}:00
-                          </div>
-                          <div className="flex-1 space-y-2">
-                            {hourAppointments.length > 0 ? (
-                              hourAppointments.map((apt) => (
-                                <div 
-                                  key={apt.id} 
-                                  className="p-3 bg-primary/10 rounded-lg border border-primary/30 hover:bg-primary/20 transition-colors cursor-pointer"
-                                  onClick={() => handleAppointmentClick(apt)}
-                                >
-                                  <div className="flex items-start justify-between">
-                                    <div className="flex-1">
-                                      <p className="font-bold text-foreground">{apt.subject}</p>
-                                      <p className="text-sm text-muted-foreground mt-1">Customer: {apt.customerName}</p>
-                                      <p className="text-sm text-muted-foreground">Employee: {apt.employee}</p>
-                                    </div>
-                                    <div className="text-xs font-semibold text-primary px-2 py-1 bg-primary/20 rounded">
-                                      {apt.startTime}
-                                    </div>
-                                  </div>
-                                </div>
-                              ))
-                            ) : (
-                              <div className="h-8 flex items-center">
-                                <span className="text-sm text-muted-foreground italic">Available</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
-          {/* Appointment List Tab */}
-          <TabsContent value="list" className="space-y-4 mt-6">
-            {selectedAppointments.length > 0 && (
-              <div className="flex items-center justify-between p-4 bg-primary/5 rounded-lg border border-primary/20">
-                <p className="text-sm font-medium">
-                  {selectedAppointments.length} appointment(s) selected
-                </p>
-                <Button
-                  onClick={() => setShareAppointmentOpen(true)}
-                  className="gap-2"
-                  size="sm"
-                >
-                  <Share2 className="h-4 w-4" />
-                  Share Appointment
-                </Button>
+            {/* Selected Date Appointments */}
+            <div className="px-4 py-4 space-y-3">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-semibold text-lg">
+                  {new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                </h3>
+                <Badge variant="outline">{dayAppointments.length} appointments</Badge>
               </div>
-            )}
 
-            <Card className="border border-border bg-card shadow-md">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3 mb-4 pb-3 border-b border-border">
-                  <Checkbox
-                    checked={selectedAppointments.length === appointments.filter(apt => apt.status === "Active").length && appointments.filter(apt => apt.status === "Active").length > 0}
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        setSelectedAppointments(appointments.filter(apt => apt.status === "Active").map((apt) => apt.id));
-                      } else {
-                        setSelectedAppointments([]);
-                      }
-                    }}
-                  />
-                  <span className="text-sm font-semibold">Select All Active</span>
+              {dayAppointments.length === 0 ? (
+                <div className="text-center py-12">
+                  <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground mb-4">No appointments scheduled</p>
+                  <Button onClick={() => navigate("/appointments/new")}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Schedule Appointment
+                  </Button>
                 </div>
-
-                <div className="space-y-3">
-                  {appointments.map((apt) => (
-                    <div key={apt.id} className="flex items-start gap-3 p-4 bg-gradient-to-r from-muted/30 to-muted/10 rounded-lg border border-border hover:shadow-md transition-all">
-                      {apt.status === "Active" && (
-                        <Checkbox
-                          checked={selectedAppointments.includes(apt.id)}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              setSelectedAppointments([...selectedAppointments, apt.id]);
-                            } else {
-                              setSelectedAppointments(
-                                selectedAppointments.filter((id) => id !== apt.id)
-                              );
-                            }
-                          }}
-                          className="mt-1"
-                        />
-                      )}
-                      {apt.status === "Deactivated" && (
-                        <div className="w-4 h-4 mt-1" />
-                      )}
-
-                      <div className="flex-1 space-y-2">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                          <div className="space-y-1">
-                            <h3 className="font-bold text-foreground">{apt.subject}</h3>
-                            <p className="text-sm text-muted-foreground">Customer: {apt.customerName}</p>
-                            <p className="text-sm text-muted-foreground">Employee: {apt.employee}</p>
-                            <div className="flex flex-wrap gap-2 mt-1">
-                              <span className="text-xs px-2 py-1 bg-accent/10 text-accent rounded-md border border-accent/20">
-                                {apt.date}
-                              </span>
-                              <span className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-md border border-primary/20">
-                                {apt.startTime} - {apt.endTime}
-                              </span>
-                            </div>
-                          </div>
-
-                          <Badge
-                            variant={apt.status === "Active" ? "default" : "secondary"}
-                            className="w-fit"
-                          >
-                            {apt.status}
-                          </Badge>
+              ) : (
+                dayAppointments.map(appointment => (
+                  <div
+                    key={appointment.id}
+                    className="p-4 rounded-xl border bg-card"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Clock className="h-4 w-4 text-primary" />
+                          <span className="font-semibold">{appointment.time}</span>
                         </div>
-
-                        <div className="flex flex-wrap gap-2 pt-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="gap-2"
-                            onClick={() => {
-                              setEditAppointmentData(apt);
-                              setEditAppointmentOpen(true);
-                            }}
-                          >
-                            <Edit className="h-4 w-4" />
-                            Edit
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="gap-2"
-                            onClick={() => {
-                              setCurrentAppointmentId(apt.id);
-                              setAddNoteOpen(true);
-                            }}
-                          >
-                            <StickyNote className="h-4 w-4" />
-                            Add Note
-                          </Button>
-                          {apt.status === "Active" ? (
-                            <>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="gap-2"
-                                onClick={() => {
-                                  setSelectedAppointments([apt.id]);
-                                  setShareAppointmentOpen(true);
-                                }}
-                              >
-                                <Share2 className="h-4 w-4" />
-                                Share
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="gap-2"
-                                onClick={() => handleToggleAppointmentStatus(apt.id)}
-                              >
-                                Deactivate
-                              </Button>
-                            </>
-                          ) : (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="gap-2"
-                              onClick={() => handleToggleAppointmentStatus(apt.id)}
-                            >
-                              Activate
-                            </Button>
-                          )}
+                        <h4 className="font-semibold text-lg mb-1">{appointment.service}</h4>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                          <User className="h-3 w-3" />
+                          <span>{appointment.customerName}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Clock className="h-3 w-3" />
+                          <span>{appointment.duration}</span>
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                    
+                    <div className="flex items-center gap-2 pt-3 border-t">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center">
+                        <span className="text-xs font-bold text-accent">
+                          {appointment.technicianName.split(" ").map(n => n[0]).join("")}
+                        </span>
+                      </div>
+                      <span className="text-sm text-muted-foreground">{appointment.technicianName}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="list" className="flex-1 outline-none data-[state=inactive]:hidden">
+            <div className="px-4 py-4 space-y-5">
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-primary/40 bg-primary/5 px-3 py-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const allActiveSelected = activeAppointmentIds.every(id => selectedAppointments.includes(id));
+                    setSelectedAppointments(allActiveSelected ? [] : activeAppointmentIds);
+                  }}
+                  className="flex items-center gap-2"
+                >
+                  <span
+                    className={cn(
+                      "flex h-4 w-4 items-center justify-center rounded-md border",
+                      activeAppointmentIds.every(id => selectedAppointments.includes(id))
+                        ? "border-primary bg-primary text-white"
+                        : "border-primary bg-white text-transparent"
+                    )}
+                  >
+                    <Check className="h-3 w-3 stroke-[3]" />
+                  </span>
+                  <span className="text-xs font-semibold text-primary tracking-wide uppercase">Select All Active</span>
+                </button>
+                {selectedAppointments.length > 0 && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="gap-1.5 rounded-full bg-primary px-3 py-1 text-[11px] font-medium text-white shadow-sm hover:bg-primary/90"
+                    onClick={() => setShareModalOpen(true)}
+                  >
+                    <Share2 className="h-3.5 w-3.5" />
+                    Share Appointments ({selectedAppointments.length})
+                  </Button>
+                )}
+              </div>
+
+              {sortedAppointments.map(appointment => {
+                const appointmentDate = new Date(appointment.date);
+                const timeRange = getTimeRange(appointment.time, appointment.duration);
+                const isActive = appointment.status.toLowerCase() === "confirmed";
+                const isSelected = selectedAppointments.includes(appointment.id);
+                return (
+                  <div
+                    key={appointment.id}
+                    className="rounded-2xl border border-gray-200 bg-white px-3 py-3 shadow-sm space-y-2.5"
+                  >
+                        <div className="flex items-start gap-2.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedAppointments(prev =>
+                                prev.includes(appointment.id)
+                                  ? prev.filter(id => id !== appointment.id)
+                                  : [...prev, appointment.id]
+                              );
+                            }}
+                            className={cn(
+                              "flex h-4 w-4 items-center justify-center rounded-md border transition-colors",
+                              isSelected ? "border-primary bg-primary text-white" : "border-gray-300 bg-white text-transparent"
+                            )}
+                          >
+                            <Check className="h-3 w-3 stroke-[3]" />
+                          </button>
+                          <div className="flex-1 space-y-1.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <h3 className="text-sm font-semibold text-gray-900">{appointment.service}</h3>
+                              <Badge className={cn(
+                                "rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                                isActive ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
+                              )}>
+                                {isActive ? "Activated" : "Deactivated"}
+                              </Badge>
+                            </div>
+                            <div className="text-xs text-muted-foreground space-y-0.5">
+                              <p>Customer: <span className="text-gray-900 font-medium">{appointment.customerName}</span></p>
+                              <p>Employee: <span className="text-gray-900 font-medium">{appointment.technicianName}</span></p>
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex flex-wrap gap-1.5">
+                                <span className="inline-flex items-center rounded-full bg-purple-100 px-2.5 py-0.5 text-[10px] font-semibold uppercase text-purple-700">
+                                  {appointmentDate.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                                </span>
+                                <span className="inline-flex items-center rounded-full bg-orange-100 px-2.5 py-0.5 text-[10px] font-semibold uppercase text-orange-600">
+                                  {timeRange}
+                                </span>
+                              </div>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-muted">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-44 rounded-2xl p-2 space-y-1">
+                                  <DropdownMenuItem
+                                    className="gap-2 rounded-xl px-3 py-2 text-[11px] font-medium"
+                                    onSelect={(event) => {
+                                      event.preventDefault();
+                                      navigate(`/appointments/${appointment.id}/edit?fromView=${viewMode}`);
+                                    }}
+                                  >
+                                    <Edit3 className="h-3.5 w-3.5 text-primary" />
+                                    Edit
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    className="gap-2 rounded-xl px-3 py-2 text-[11px] font-medium"
+                                    onSelect={(event) => {
+                                      event.preventDefault();
+                                      setSelectedAppointmentForNote(appointment.id);
+                                      setAddNoteModalOpen(true);
+                                    }}
+                                  >
+                                    <FileText className="h-3.5 w-3.5 text-primary" />
+                                    Add Note
+                                  </DropdownMenuItem>
+                                  {isActive ? (
+                                    <>
+                                      <DropdownMenuItem
+                                        className="gap-2 rounded-xl px-3 py-2 text-[11px] font-medium"
+                                        onSelect={(event) => {
+                                          event.preventDefault();
+                                          setSingleAppointmentToShare(appointment);
+                                          setShareModalOpen(true);
+                                        }}
+                                      >
+                                        <Share2 className="h-3.5 w-3.5 text-primary" />
+                                        Share
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem className="gap-2 rounded-xl px-3 py-2 text-[11px] font-medium text-red-600 focus:text-red-600">
+                                        <Ban className="h-3.5 w-3.5" />
+                                        Deactivate
+                                      </DropdownMenuItem>
+                                    </>
+                                  ) : (
+                                    <DropdownMenuItem className="gap-2 rounded-xl px-3 py-2 text-[11px] font-medium text-primary">
+                                      <BookmarkCheck className="h-3.5 w-3.5" />
+                                      Activate
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </div>
+                        </div>
+                  </div>
+                );
+              })}
+            </div>
           </TabsContent>
         </Tabs>
-      </main>
+      </div>
 
-      <AddNoteModal
-        open={addNoteOpen}
-        onOpenChange={setAddNoteOpen}
-        appointmentId={currentAppointmentId}
-      />
-      
       <ShareAppointmentModal
-        open={shareAppointmentOpen}
-        onOpenChange={setShareAppointmentOpen}
-        selectedAppointments={selectedAppointments}
+        open={shareModalOpen}
+        selectedCount={singleAppointmentToShare ? 1 : selectedAppointments.length}
+        appointmentName={singleAppointmentToShare?.service}
+        onClose={() => {
+          setShareModalOpen(false);
+          setSingleAppointmentToShare(null);
+        }}
+        onShare={({ via, audience }) => {
+          const appointmentsToShare = singleAppointmentToShare 
+            ? [singleAppointmentToShare.id] 
+            : selectedAppointments;
+          
+          console.info("Sharing appointments", {
+            appointments: appointmentsToShare,
+            via,
+            audience,
+          });
+          
+          setSingleAppointmentToShare(null);
+        }}
       />
 
       <AppointmentDetailsModal
-        open={appointmentDetailsOpen}
-        onOpenChange={setAppointmentDetailsOpen}
-        appointment={selectedAppointment}
-        onToggleStatus={handleToggleAppointmentStatus}
-        onEdit={(apt) => {
-          setEditAppointmentData(apt);
-          setEditAppointmentOpen(true);
-          setAppointmentDetailsOpen(false);
+        open={detailsModalOpen}
+        onClose={() => {
+          setDetailsModalOpen(false);
+          setSelectedAppointment(null);
         }}
-        onAddNote={(apt) => {
-          setCurrentAppointmentId(apt.id);
-          setAddNoteOpen(true);
-          setAppointmentDetailsOpen(false);
+        appointment={selectedAppointment}
+        onSave={(updatedAppointment) => {
+          console.info("Saving appointment", updatedAppointment);
+          // Handle save logic here
+        }}
+        onEdit={(appointmentId) => {
+          navigate(`/appointments/${appointmentId}/edit?fromView=${viewMode}`);
+        }}
+        onCreateEstimate={() => {
+          console.info("Create estimate for appointment", selectedAppointment?.id);
+          navigate(`/estimates/new?appointmentId=${selectedAppointment?.id}`);
+        }}
+        onCreateInvoice={() => {
+          console.info("Create invoice for appointment", selectedAppointment?.id);
+          navigate(`/invoices/new?appointmentId=${selectedAppointment?.id}`);
+        }}
+        onViewCustomer={() => {
+          console.info("View customer", selectedAppointment?.customerId);
+          navigate(`/customers/${selectedAppointment?.customerId}`);
         }}
       />
 
-      <EditAppointmentModal
-        open={editAppointmentOpen}
-        onOpenChange={setEditAppointmentOpen}
-        appointment={editAppointmentData}
-        onSave={handleEditAppointment}
+      <AddNoteModal
+        open={addNoteModalOpen}
+        onClose={() => {
+          setAddNoteModalOpen(false);
+          setSelectedAppointmentForNote(null);
+        }}
+        appointmentId={selectedAppointmentForNote}
+        existingNotes={selectedAppointmentForNote ? (appointmentNotes[selectedAppointmentForNote] || []) : []}
+        onAddNote={(appointmentId, noteText) => {
+          const now = new Date();
+          const formattedDate = now.toLocaleDateString('en-US', {
+            month: '2-digit',
+            day: '2-digit',
+            year: 'numeric',
+          });
+          const formattedTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+          
+          const newNote = {
+            id: Date.now().toString(),
+            text: noteText,
+            createdBy: "Current User", // Replace with actual user from auth context
+            createdAt: `${formattedDate} ${formattedTime}`,
+          };
+          
+          setAppointmentNotes(prev => ({
+            ...prev,
+            [appointmentId]: [...(prev[appointmentId] || []), newNote],
+          }));
+          
+          console.info("Note added to appointment", appointmentId, noteText);
+        }}
       />
     </div>
   );
 };
 
 export default ManageAppointments;
+
+function toISODate(date: Date) {
+  const offset = date.getTimezoneOffset() * 60000;
+  const localISOTime = new Date(date.getTime() - offset).toISOString();
+  return localISOTime.split("T")[0];
+}
+
+function generateCalendarDays(monthDate: Date, todayISO: string) {
+  const year = monthDate.getFullYear();
+  const month = monthDate.getMonth();
+  const firstDayOfMonth = new Date(year, month, 1);
+  const startDay = firstDayOfMonth.getDay();
+  const calendarStart = new Date(firstDayOfMonth);
+  calendarStart.setDate(firstDayOfMonth.getDate() - startDay);
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(calendarStart);
+    date.setDate(calendarStart.getDate() + index);
+    const iso = toISODate(date);
+
+    return {
+      date,
+      iso,
+      isCurrentMonth: date.getMonth() === month,
+      isToday: iso === todayISO,
+    };
+  });
+}
+

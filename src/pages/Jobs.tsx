@@ -85,6 +85,22 @@ const Jobs = () => {
                   key={job.id} 
                   job={job}
                   onClick={() => navigate(`/jobs/${job.id}`)}
+                  onQuickAction={(action) => {
+                    switch (action) {
+                      case "view":
+                        navigate(`/jobs/${job.id}`);
+                        break;
+                      case "edit":
+                        navigate(`/jobs/${job.id}/edit`);
+                        break;
+                      case "share":
+                        // Handle share action
+                        break;
+                      case "cancel":
+                        // Handle cancel action
+                        break;
+                    }
+                  }}
                 />
               ))
             ) : (

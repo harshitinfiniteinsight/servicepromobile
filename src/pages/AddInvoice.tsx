@@ -15,6 +15,7 @@ import { mockCustomers, mockInventory, mockEmployees, mockDiscounts } from "@/da
 import { Search, Plus, Minus, X, ChevronsUpDown, Check, Package, FileText, Save, Upload, Tag, Camera, RefreshCw, List } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { showSuccessToast } from "@/utils/toast";
 
 const AddInvoice = () => {
   const navigate = useNavigate();
@@ -1364,7 +1365,7 @@ const AddInvoice = () => {
             <Button
               className="flex-1 h-9 text-sm"
               onClick={() => {
-                toast.success("Invoice created successfully");
+                showSuccessToast("Invoice created successfully");
                 navigate("/invoices");
               }}
             >

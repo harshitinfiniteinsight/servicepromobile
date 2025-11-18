@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import MobileHeader from "@/components/layout/MobileHeader";
 import { mockCustomers, mockInvoices } from "@/data/mobileMockData";
 import { Button } from "@/components/ui/button";
@@ -13,11 +13,14 @@ import { Phone, Mail, MapPin, DollarSign, Calendar, Edit, Camera, ChevronDown, C
 import { cn } from "@/lib/utils";
 import { statusColors } from "@/data/mobileMockData";
 import { toast } from "sonner";
+import { showSuccessToast } from "@/utils/toast";
 import CustomerAddNoteModal from "@/components/modals/CustomerAddNoteModal";
+import { getCustomerOrders, Order } from "@/services/orderService";
 
 const CustomerDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const customer = mockCustomers.find(c => c.id === id);
   
@@ -37,6 +40,8 @@ const CustomerDetails = () => {
   const [isEditing, setIsEditing] = useState(editParam === "true");
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(true);
   const [addNoteModalOpen, setAddNoteModalOpen] = useState(false);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [isLoadingOrders, setIsLoadingOrders] = useState(true);
   
   const [formState, setFormState] = useState({
     name: customer.name,
@@ -68,6 +73,25 @@ const CustomerDetails = () => {
       setIsEditing(true);
     }
   }, [editParam]);
+
+  // Fetch customer orders (including cart orders)
+  useEffect(() => {
+    const fetchOrders = async () => {
+      if (!id) return;
+      try {
+        setIsLoadingOrders(true);
+        const customerOrders = await getCustomerOrders(id);
+        setOrders(customerOrders);
+      } catch (error) {
+        console.error("Error fetching customer orders:", error);
+        toast.error("Failed to load orders");
+      } finally {
+        setIsLoadingOrders(false);
+      }
+    };
+
+    fetchOrders();
+  }, [id, location.key]); // location.key ensures refresh when navigating from checkout
 
   const handleChange = (field: keyof typeof formState) => (value: string) => {
     setFormState(prev => ({
@@ -284,7 +308,7 @@ const CustomerDetails = () => {
                       console.info("Saving customer", formState);
                       setIsEditing(false);
                       navigate(`/customers/${id}`, { replace: true });
-                      toast.success("Customer updated successfully");
+                      showSuccessToast("Customer information updated successfully");
                     }}
                     className="bg-primary text-white hover:bg-primary/90"
                   >
@@ -325,40 +349,80 @@ const CustomerDetails = () => {
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            {customerInvoices.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Order ID</TableHead>
-                    <TableHead>Employee Name</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead className="text-right">Date</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {customerInvoices.map(order => (
-                    <TableRow key={order.id} className="cursor-pointer hover:bg-muted/40">
-                      <TableCell className="font-medium">{order.id}</TableCell>
-                      <TableCell>John Doe</TableCell>
-                      <TableCell>${order.amount.toFixed(2)}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="capitalize">
-                          {order.type ?? "Invoice"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {new Date(order.issueDate).toLocaleDateString()}
-                      </TableCell>
+            {(() => {
+              // Combine cart orders with invoices
+              // Convert invoices to order format for display
+              const invoiceOrders = customerInvoices.map(inv => ({
+                id: inv.id,
+                type: inv.type === "recurring" ? "invoice" : "invoice" as const,
+                orderType: inv.type === "recurring" ? "Recurring" : "Single" as const,
+                source: "invoice" as const,
+                customerId: inv.customerId,
+                customerName: inv.customerName,
+                items: [],
+                subtotal: inv.amount,
+                tax: 0,
+                total: inv.amount,
+                createdAt: inv.issueDate,
+                issueDate: inv.issueDate,
+                status: inv.status,
+                paymentMethod: inv.paymentMethod,
+              }));
+
+              // Combine all orders and sort by date (newest first)
+              const allOrders = [...orders, ...invoiceOrders].sort((a, b) => {
+                const dateA = new Date(a.createdAt || a.issueDate || 0).getTime();
+                const dateB = new Date(b.createdAt || b.issueDate || 0).getTime();
+                return dateB - dateA;
+              });
+
+              if (isLoadingOrders) {
+                return (
+                  <div className="py-8 text-center text-muted-foreground">
+                    Loading orders...
+                  </div>
+                );
+              }
+
+              if (allOrders.length === 0) {
+                return (
+                  <div className="py-8 text-center text-muted-foreground">
+                    No orders found for this customer.
+                  </div>
+                );
+              }
+
+              return (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Order ID</TableHead>
+                      <TableHead>Employee Name</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead className="text-right">Date</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            ) : (
-              <div className="py-8 text-center text-muted-foreground">
-                No orders found for this customer.
-              </div>
-            )}
+                  </TableHeader>
+                  <TableBody>
+                    {allOrders.map(order => (
+                      <TableRow key={order.id} className="cursor-pointer hover:bg-muted/40">
+                        <TableCell className="font-medium">{order.id}</TableCell>
+                        <TableCell>{order.employeeName || "N/A"}</TableCell>
+                        <TableCell>${order.total.toFixed(2)}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="capitalize">
+                            {order.orderType || order.type || "Invoice"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {new Date(order.createdAt || order.issueDate || Date.now()).toLocaleDateString()}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              );
+            })()}
           </CardContent>
         </Card>
       </div>
@@ -370,7 +434,7 @@ const CustomerDetails = () => {
         customer={customer}
         onAddNote={(customerId, noteText) => {
           console.info("Adding note to customer", customerId, noteText);
-          toast.success("Note added successfully");
+          showSuccessToast("Note added successfully");
         }}
       />
     </div>

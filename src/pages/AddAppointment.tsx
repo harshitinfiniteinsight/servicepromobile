@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { mockAppointments, mockCustomers, mockEmployees, serviceTypes } from "@/data/mobileMockData";
 import { Plus, Users, UserCheck, UserRoundPlus, Calendar, Clock, Bell, Mail, Phone } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { showSuccessToast } from "@/utils/toast";
 
 const reminderOptions = [
   "15 minutes",
@@ -96,6 +97,11 @@ const AddAppointment = ({ mode = "create" }: AddAppointmentProps) => {
   }, [preselectedCustomerId, preselectedCustomerName, mode]);
 
   const handleSubmit = () => {
+    if (mode === "edit") {
+      showSuccessToast("Appointment updated successfully");
+    } else {
+      showSuccessToast("Appointment created successfully");
+    }
     if (fromDashboard) {
       navigate("/");
     } else {

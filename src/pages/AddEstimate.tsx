@@ -10,6 +10,7 @@ import { mockCustomers, mockInventory, mockEmployees, mockDiscounts, mockEstimat
 import { Search, Plus, Minus, X, RefreshCw, List, Check, ChevronsUpDown, Package, FileText, Save, Upload, Tag, Camera } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { showSuccessToast } from "@/utils/toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -1275,9 +1276,9 @@ const AddEstimate = () => {
           ) : (
             <Button className="flex-1" onClick={() => {
               if (isEditMode) {
-                toast.success("Estimate updated successfully");
+                showSuccessToast("Estimate updated successfully");
               } else {
-                toast.success("Estimate created successfully");
+                showSuccessToast("Estimate created successfully");
               }
               navigate("/estimates");
             }}>

@@ -1,312 +1,232 @@
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import MobileHeader from "@/components/layout/MobileHeader";
-import { User, Lock, Shield, Globe, HelpCircle, FileText, CreditCard, Building2, Bell, ChevronRight, ClipboardList, Users, Package, BarChart3, Briefcase, Calendar, FileText as FileTextIcon, TrendingUp, ChevronDown, DollarSign } from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { 
+  Home, 
+  Briefcase, 
+  DollarSign, 
+  Calendar, 
+  Users, 
+  Package, 
+  UserCog, 
+  BarChart3, 
+  Settings as SettingsIcon,
+  FileText,
+  TrendingUp,
+  ClipboardList,
+  ShoppingCart,
+  List,
+  ArrowLeftRight,
+  RefreshCw,
+  User,
+  Lock,
+  Shield,
+  Building2,
+  CreditCard,
+  Globe,
+  HelpCircle,
+  LogOut,
+  ChevronRight
+} from "lucide-react";
 
 const Settings = () => {
   const navigate = useNavigate();
-  // Single state to track which accordion section is expanded (null = none)
-  const [expandedSection, setExpandedSection] = useState<string | null>(null);
 
-  // Helper function to toggle accordion sections (single-expand behavior)
-  const toggleSection = (sectionName: string) => {
-    setExpandedSection((prev) => (prev === sectionName ? null : sectionName));
+  const handleLogout = () => {
+    // Handle logout logic here
+    console.log("Logging out...");
+    // navigate("/signin");
   };
 
-  const operationalModules = [
+  const menuItems = [
     {
+      id: "dashboard",
+      title: "Dashboard",
+      icon: Home,
+      route: "/",
+      hasSubmenu: false,
+    },
+    {
+      id: "jobs",
+      title: "Jobs",
+      icon: Briefcase,
+      route: "/jobs",
+      hasSubmenu: false,
+    },
+    {
+      id: "sales",
       title: "Sales",
-      isExpandable: true,
-      parentIcon: DollarSign,
-      items: [
-        { icon: FileTextIcon, label: "Invoices", route: "/invoices" },
-        { icon: TrendingUp, label: "Estimates", route: "/estimates" },
-        { icon: ClipboardList, label: "Agreements", route: "/agreements" },
+      icon: DollarSign,
+      hasSubmenu: true,
+      submenus: [
+        { label: "Invoices", route: "/invoices", icon: FileText },
+        { label: "Estimates", route: "/estimates", icon: TrendingUp },
+        { label: "Agreements", route: "/agreements", icon: ClipboardList },
+        { label: "Sell Product", route: "/inventory?mode=sell", icon: ShoppingCart },
       ],
     },
     {
-      title: "Operations",
-      items: [
-        { icon: Users, label: "Customers", route: "/customers" },
-        { icon: Briefcase, label: "Jobs", route: "/jobs" },
-        { icon: Calendar, label: "Appointments", route: "/appointments/manage" },
-        { icon: Users, label: "Employees", route: "/employees" },
-        { icon: Package, label: "Inventory", route: "/inventory" },
-        { icon: BarChart3, label: "Reports", route: "/reports" },
+      id: "appointments",
+      title: "Appointments",
+      icon: Calendar,
+      route: "/appointments/manage",
+      hasSubmenu: false,
+    },
+    {
+      id: "customers",
+      title: "Customers",
+      icon: Users,
+      route: "/customers",
+      hasSubmenu: false,
+    },
+    {
+      id: "inventory",
+      title: "Inventory",
+      icon: Package,
+      hasSubmenu: true,
+      submenus: [
+        { label: "Inventory List", route: "/inventory", icon: List },
+        { label: "Inventory Stock In/Out", route: "/inventory/stock-in-out", icon: ArrowLeftRight },
+        { label: "Inventory Refund", route: "/inventory/refunds", icon: RefreshCw },
       ],
     },
     {
-      title: "Account",
-      items: [
-        { icon: User, label: "Profile", route: "/settings/profile" },
-        { icon: Lock, label: "Change Password", route: "/settings/change-password" },
+      id: "employees",
+      title: "Employees",
+      icon: UserCog,
+      hasSubmenu: true,
+      submenus: [
+        { label: "Employee List", route: "/employees", icon: Users },
+        { label: "Schedule", route: "/employees/schedule", icon: Calendar },
+        { label: "Employee Tracking", route: "/employees/tracking", icon: BarChart3 },
       ],
     },
     {
-      title: "Business",
-      items: [
-        { icon: Building2, label: "Business Policies", route: "/settings/business-policies" },
-        { icon: CreditCard, label: "Payment Methods", route: "/settings/payment-methods" },
-        { icon: FileText, label: "Terms & Conditions", route: "/settings/terms" },
-        { icon: FileText, label: "Return Policy", route: "/settings/return-policy" },
+      id: "reports",
+      title: "Reports",
+      icon: BarChart3,
+      hasSubmenu: true,
+      submenus: [
+        { label: "Invoice Report", route: "/reports/invoice", icon: FileText },
+        { label: "Estimate Report", route: "/reports/estimate", icon: TrendingUp },
+        { label: "Monthly Report Alert", route: "/reports/monthly-alert", icon: BarChart3 },
       ],
     },
     {
-      title: "Preferences",
-      items: [
-        { icon: Globe, label: "Change Language", route: "/settings/language" },
-        { icon: Shield, label: "Permissions", route: "/settings/permissions" },
-      ],
-    },
-    {
-      title: "Support",
-      items: [
-        { icon: HelpCircle, label: "Help", route: "/settings/help" },
+      id: "settings",
+      title: "Settings",
+      icon: SettingsIcon,
+      hasSubmenu: true,
+      submenus: [
+        { label: "Profile", route: "/settings/profile", icon: User },
+        { label: "Change Password", route: "/settings/change-password", icon: Lock },
+        { label: "Permission Settings", route: "/settings/permissions", icon: Shield },
+        { label: "Business Policies", route: "/settings/business-policies", icon: Building2 },
+        { label: "Payment Settings", route: "/settings/payment-methods", icon: CreditCard },
+        { label: "Change App Language", route: "/settings/language", icon: Globe },
+        { label: "Help", route: "/settings/help", icon: HelpCircle },
+        { label: "Logout", route: null, icon: LogOut, isAction: true },
       ],
     },
   ];
 
+  const getIconColor = (id: string) => {
+    const colorMap: Record<string, string> = {
+      dashboard: "bg-blue-100 text-blue-500",
+      jobs: "bg-purple-100 text-purple-500",
+      sales: "bg-orange-100 text-orange-500",
+      appointments: "bg-green-100 text-green-500",
+      customers: "bg-pink-100 text-pink-500",
+      inventory: "bg-indigo-100 text-indigo-500",
+      employees: "bg-teal-100 text-teal-500",
+      reports: "bg-amber-100 text-amber-500",
+      settings: "bg-gray-100 text-gray-500",
+    };
+    return colorMap[id] || "bg-primary/10 text-primary";
+  };
+
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      <MobileHeader title="Settings" showBack={true} />
+      <MobileHeader title="Main Menu" showBack={true} />
       
-      <div className="flex-1 overflow-y-auto scrollable pt-14">
-        {operationalModules.map((section, sectionIdx) => (
-          <div key={sectionIdx} className="mb-6">
-            {!section.isExpandable && (
-            <div className="px-4 py-2 bg-muted/30">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase">
-                {section.title}
-              </h3>
-            </div>
-            )}
-            <div className="space-y-1">
-              {section.isExpandable ? (
-                // Expandable section (Sales or Employees)
-                <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-                  {/* Parent Item */}
-                  <button
-                    onClick={() => {
-                      if (section.title === "Sales") {
-                        toggleSection("sales");
-                      }
-                    }}
-                    className="w-full px-4 py-4 flex items-center justify-between hover:bg-accent/5 active:bg-accent/10 transition-colors border-b border-gray-100"
+      <div className="flex-1 overflow-y-auto scrollable pt-14 pb-20">
+        <div className="px-4 py-4">
+          <Accordion type="single" collapsible className="space-y-3">
+            {menuItems.map((item) => {
+              const Icon = item.icon;
+              
+              if (item.hasSubmenu) {
+                return (
+                  <AccordionItem
+                    key={item.id}
+                    value={item.id}
+                    className="border-0 bg-white rounded-xl shadow-sm overflow-hidden"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center">
-                        {section.title === "Sales" ? (
-                          <DollarSign className="h-5 w-5 text-orange-500" />
-                        ) : (
-                          <section.parentIcon className="h-5 w-5 text-orange-500" />
-                        )}
+                    <AccordionTrigger className="px-4 py-4 hover:no-underline hover:bg-accent/5">
+                      <div className="flex items-center gap-3 flex-1">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${getIconColor(item.id)}`}>
+                          <Icon className="h-5 w-5" />
+                        </div>
+                        <span className="font-medium text-gray-800">{item.title}</span>
                       </div>
-                      <span className="font-medium text-gray-800">{section.title}</span>
-                    </div>
-                    {expandedSection === "sales" ? (
-                      <ChevronDown className="h-5 w-5 text-gray-400 transition-transform duration-200" />
-                    ) : (
-                      <ChevronRight className="h-5 w-5 text-gray-400 transition-transform duration-200" />
-                    )}
-                  </button>
-
-                  {/* Subheadings */}
-                  {expandedSection === "sales" && (
-                    <div className="pl-12 pr-4 py-2 space-y-1 border-t border-gray-50 bg-gray-50/30 animate-in slide-in-from-top-2 duration-200">
-                      {section.items.map((subItem, subIdx) => (
-                        <button
-                          key={subIdx}
-                          onClick={() => navigate(subItem.route)}
-                          className="w-full flex items-center justify-between py-2 hover:bg-gray-50 rounded-lg transition-colors"
-                        >
-                          <span className="text-sm text-gray-700">{subItem.label}</span>
-                          <ChevronRight className="w-4 h-4 text-gray-400" />
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                // Regular items
-                section.items.map((item, itemIdx) => {
-                  const Icon = item.icon;
-                  const isEmployees = item.label === "Employees";
-                  const isInventory = item.label === "Inventory";
-                  const isReports = item.label === "Reports";
-                  
-                  if (isEmployees) {
-                    return (
-                      <div key={itemIdx} className="bg-white rounded-xl shadow-sm overflow-hidden">
-                        {/* Employees Main Item */}
-                        <button
-                          onClick={() => toggleSection("employees")}
-                          className="w-full px-4 py-4 flex items-center justify-between hover:bg-accent/5 active:bg-accent/10 transition-colors border-b border-gray-100"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center">
-                              <Icon className="h-5 w-5 text-orange-500" />
-                            </div>
-                            <span className="font-medium text-gray-800">{item.label}</span>
-                          </div>
-                          {expandedSection === "employees" ? (
-                            <ChevronDown className="h-5 w-5 text-gray-400 transition-transform duration-200" />
-                          ) : (
-                            <ChevronRight className="h-5 w-5 text-gray-400 transition-transform duration-200" />
-                          )}
-                        </button>
-
-                        {/* Subheadings */}
-                        {expandedSection === "employees" && (
-                          <div className="pl-12 pr-4 py-2 space-y-1 border-t border-gray-50 bg-gray-50/30 animate-in slide-in-from-top-2 duration-200">
+                    </AccordionTrigger>
+                    <AccordionContent className="px-4 pb-4 pt-0">
+                      <div className="pl-12 space-y-1">
+                        {item.submenus?.map((submenu, idx) => {
+                          const SubIcon = submenu.icon;
+                          return (
                             <button
-                              onClick={() => navigate("/employees")}
-                              className="w-full flex items-center justify-between py-2 hover:bg-gray-50 rounded-lg transition-colors"
+                              key={idx}
+                              onClick={() => {
+                                if (submenu.isAction && submenu.label === "Logout") {
+                                  handleLogout();
+                                } else if (submenu.route) {
+                                  navigate(submenu.route);
+                                }
+                              }}
+                              className={`w-full flex items-center justify-between py-2.5 px-3 rounded-lg transition-colors ${
+                                submenu.label === "Logout"
+                                  ? "text-red-600 hover:bg-red-50"
+                                  : "text-gray-700 hover:bg-gray-50"
+                              }`}
                             >
-                              <span className="text-sm text-gray-700">Employee List</span>
-                              <ChevronRight className="w-4 h-4 text-gray-400" />
+                              <div className="flex items-center gap-2">
+                                <SubIcon className="h-4 w-4" />
+                                <span className="text-sm font-medium">{submenu.label}</span>
+                              </div>
+                              {submenu.route && (
+                                <ChevronRight className="w-4 h-4 text-gray-400" />
+                              )}
                             </button>
-                            <button
-                              onClick={() => navigate("/employees/schedule")}
-                              className="w-full flex items-center justify-between py-2 hover:bg-gray-50 rounded-lg transition-colors"
-                            >
-                              <span className="text-sm text-gray-700">Schedule</span>
-                              <ChevronRight className="w-4 h-4 text-gray-400" />
-                            </button>
-                            <button
-                              onClick={() => navigate("/employees/tracking")}
-                              className="w-full flex items-center justify-between py-2 hover:bg-gray-50 rounded-lg transition-colors"
-                            >
-                              <span className="text-sm text-gray-700">Employee Tracking</span>
-                              <ChevronRight className="w-4 h-4 text-gray-400" />
-                            </button>
-                          </div>
-                        )}
+                          );
+                        })}
                       </div>
-                    );
-                  }
-
-                  if (isInventory) {
-                    return (
-                      <div key={itemIdx} className="bg-white rounded-xl shadow-sm overflow-hidden">
-                        {/* Inventory Main Item */}
-                        <button
-                          onClick={() => toggleSection("inventory")}
-                          className="w-full px-4 py-4 flex items-center justify-between hover:bg-accent/5 active:bg-accent/10 transition-colors border-b border-gray-100"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center">
-                              <Icon className="h-5 w-5 text-orange-500" />
-                            </div>
-                            <span className="font-medium text-gray-800">{item.label}</span>
-                          </div>
-                          {expandedSection === "inventory" ? (
-                            <ChevronDown className="h-5 w-5 text-gray-400 transition-transform duration-200" />
-                          ) : (
-                            <ChevronRight className="h-5 w-5 text-gray-400 transition-transform duration-200" />
-                          )}
-                        </button>
-
-                        {/* Subheadings */}
-                        {expandedSection === "inventory" && (
-                          <div className="pl-12 pr-4 py-2 space-y-1 border-t border-gray-50 bg-gray-50/30 animate-in slide-in-from-top-2 duration-200">
-                            <button
-                              onClick={() => navigate("/inventory")}
-                              className="w-full flex items-center justify-between py-2 hover:bg-gray-50 rounded-lg transition-colors"
-                            >
-                              <span className="text-sm text-gray-700">Inventory List</span>
-                              <ChevronRight className="w-4 h-4 text-gray-400" />
-                            </button>
-                            <button
-                              onClick={() => navigate("/inventory/stock-in-out")}
-                              className="w-full flex items-center justify-between py-2 hover:bg-gray-50 rounded-lg transition-colors"
-                            >
-                              <span className="text-sm text-gray-700">Inventory Stock In/Out</span>
-                              <ChevronRight className="w-4 h-4 text-gray-400" />
-                            </button>
-                            <button
-                              onClick={() => navigate("/inventory/refunds")}
-                              className="w-full flex items-center justify-between py-2 hover:bg-gray-50 rounded-lg transition-colors"
-                            >
-                              <span className="text-sm text-gray-700">Inventory Refund</span>
-                              <ChevronRight className="w-4 h-4 text-gray-400" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  }
-
-                  if (isReports) {
-                    return (
-                      <div key={itemIdx} className="bg-white rounded-xl shadow-sm overflow-hidden">
-                        {/* Reports Main Item */}
-                        <button
-                          onClick={() => toggleSection("reports")}
-                          className="w-full px-4 py-4 flex items-center justify-between hover:bg-accent/5 active:bg-accent/10 transition-colors border-b border-gray-100"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center">
-                              <Icon className="h-5 w-5 text-orange-500" />
-                            </div>
-                            <span className="font-medium text-gray-800">{item.label}</span>
-                          </div>
-                          {expandedSection === "reports" ? (
-                            <ChevronDown className="h-5 w-5 text-gray-400 transition-transform duration-200" />
-                          ) : (
-                            <ChevronRight className="h-5 w-5 text-gray-400 transition-transform duration-200" />
-                          )}
-                        </button>
-
-                        {/* Subheadings */}
-                        {expandedSection === "reports" && (
-                          <div className="pl-12 pr-4 py-2 space-y-1 border-t border-gray-50 bg-gray-50/30 animate-in slide-in-from-top-2 duration-200">
-                            <button
-                              onClick={() => navigate("/reports/invoice")}
-                              className="w-full flex items-center justify-between py-2 hover:bg-gray-50 rounded-lg transition-colors"
-                            >
-                              <span className="text-sm text-gray-700">Invoice Reports</span>
-                              <ChevronRight className="w-4 h-4 text-gray-400" />
-                            </button>
-                            <button
-                              onClick={() => navigate("/reports/estimate")}
-                              className="w-full flex items-center justify-between py-2 hover:bg-gray-50 rounded-lg transition-colors"
-                            >
-                              <span className="text-sm text-gray-700">Estimate Report</span>
-                              <ChevronRight className="w-4 h-4 text-gray-400" />
-                            </button>
-                            <button
-                              onClick={() => navigate("/reports/monthly-alert")}
-                              className="w-full flex items-center justify-between py-2 hover:bg-gray-50 rounded-lg transition-colors"
-                            >
-                              <span className="text-sm text-gray-700">Monthly Report Alert</span>
-                              <ChevronRight className="w-4 h-4 text-gray-400" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  }
-
-                  return (
-                  <button
-                    key={itemIdx}
-                    onClick={() => navigate(item.route)}
-                    className="w-full px-4 py-4 flex items-center justify-between hover:bg-accent/5 active:bg-accent/10 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <Icon className="h-5 w-5 text-primary" />
-                      </div>
-                      <span className="font-medium">{item.label}</span>
-                    </div>
-                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                  </button>
+                    </AccordionContent>
+                  </AccordionItem>
                 );
-                })
-              )}
-            </div>
-          </div>
-        ))}
+              }
+              
+              // Render non-expandable items as AccordionItems that are always "closed" (disabled state)
+              // This maintains order while keeping them in the Accordion structure
+              return (
+                <div key={item.id} className="bg-white rounded-xl shadow-sm">
+                  <button
+                    onClick={() => navigate(item.route!)}
+                    className="w-full px-4 py-4 flex items-center justify-between hover:bg-accent/5 active:bg-accent/10 transition-colors rounded-xl"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${getIconColor(item.id)}`}>
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <span className="font-medium text-gray-800">{item.title}</span>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-gray-400" />
+                  </button>
+                </div>
+              );
+            })}
+          </Accordion>
+        </div>
       </div>
     </div>
   );

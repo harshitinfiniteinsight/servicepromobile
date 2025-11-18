@@ -1,11 +1,12 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import MobileHeader from "@/components/layout/MobileHeader";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { mockInventory, mockEmployees, mockDiscounts } from "@/data/mobileMockData";
-import { Plus, Search, MoreVertical, Trash2 } from "lucide-react";
+import { Plus, Minus, Search, Trash2, Edit, Package, AlertTriangle, AlertCircle, UserCog, FileText, Settings, List, Grid3x3, Image as ImageIcon, ShoppingCart } from "lucide-react";
+import KebabMenu, { KebabMenuItem } from "@/components/common/KebabMenu";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import LowInventoryAlertModal from "@/components/modals/LowInventoryAlertModal";
@@ -20,14 +21,46 @@ import AddDiscountModal from "@/components/modals/AddDiscountModal";
 import EditDiscountModal from "@/components/modals/EditDiscountModal";
 import SendCurrentReportModal from "@/components/modals/SendCurrentReportModal";
 import SendStockInOutReportModal from "@/components/modals/SendStockInOutReportModal";
+import CartViewModal from "@/components/modals/CartViewModal";
+import { useCart } from "@/contexts/CartContext";
 import { toast } from "sonner";
+import { showSuccessToast } from "@/utils/toast";
 
 const Inventory = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const { getTotalItems, addItem } = useCart();
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("inventory-services");
+  const [viewMode, setViewMode] = useState<"list" | "grid">(() => {
+    const saved = localStorage.getItem("inventory-view-mode");
+    return (saved === "grid" || saved === "list") ? saved : "list";
+  });
+  const [cartViewModalOpen, setCartViewModalOpen] = useState(false);
+
+  // Ensure grid view and inventory-services tab are applied when navigating from "Sell Product"
+  useEffect(() => {
+    const mode = searchParams.get("mode");
+    const state = location.state as { fromSellProduct?: boolean } | null;
+    
+    if (mode === "sell" || state?.fromSellProduct) {
+      // Set grid view (localStorage was already set in SalesSubmenu)
+      setViewMode("grid");
+      // Ensure inventory-services tab is active
+      setActiveTab("inventory-services");
+      // Clear the query parameter and state to prevent re-triggering
+      if (mode === "sell") {
+        const newSearchParams = new URLSearchParams(searchParams);
+        newSearchParams.delete("mode");
+        navigate(`${location.pathname}${newSearchParams.toString() ? `?${newSearchParams.toString()}` : ""}`, { replace: true });
+      }
+      if (state?.fromSellProduct) {
+        window.history.replaceState({}, document.title);
+      }
+    }
+  }, [location.pathname, location.state, searchParams, navigate]);
   const [selectedEmployee, setSelectedEmployee] = useState<string>("all");
-  const [equipmentMenuOpenId, setEquipmentMenuOpenId] = useState<string | null>(null);
   const [assignEmployeeModalOpen, setAssignEmployeeModalOpen] = useState(false);
   const [selectedEquipmentForAssign, setSelectedEquipmentForAssign] = useState<{ id: string; currentEmployeeId: string | null } | null>(null);
   const [addNoteModalOpen, setAddNoteModalOpen] = useState(false);
@@ -50,9 +83,10 @@ const Inventory = () => {
   } | null>(null);
   const [sendCurrentReportModalOpen, setSendCurrentReportModalOpen] = useState(false);
   const [sendStockInOutReportModalOpen, setSendStockInOutReportModalOpen] = useState(false);
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [lowAlertModalOpen, setLowAlertModalOpen] = useState(false);
   const [selectedItemForAlert, setSelectedItemForAlert] = useState<{ id: string; threshold?: number } | null>(null);
+  // Quantity state for each inventory item
+  const [itemQuantities, setItemQuantities] = useState<Record<string, number>>({});
   const [stockAdjustmentModalOpen, setStockAdjustmentModalOpen] = useState(false);
   const [selectedItemForAdjustment, setSelectedItemForAdjustment] = useState<{ id: string; name: string; sku: string; stock: number } | null>(null);
   const [stockAdjustmentDefaults, setStockAdjustmentDefaults] = useState<{
@@ -83,6 +117,58 @@ const Inventory = () => {
     return matchesSearch;
   });
 
+  // Quantity management functions
+  const getItemQuantity = (itemId: string) => {
+    return itemQuantities[itemId] ?? 1;
+  };
+
+  const updateItemQuantity = (itemId: string, change: number) => {
+    const currentQty = getItemQuantity(itemId);
+    const item = mockInventory.find(i => i.id === itemId);
+    const maxQty = item?.stock ?? 0;
+    const newQty = Math.max(1, Math.min(maxQty, currentQty + change));
+    setItemQuantities(prev => ({
+      ...prev,
+      [itemId]: newQty,
+    }));
+  };
+
+  const handleAddToCart = (item: typeof mockInventory[number]) => {
+    if (item.stock === 0) {
+      toast.error("Item is out of stock");
+      return;
+    }
+    const qty = getItemQuantity(item.id);
+    if (qty > item.stock) {
+      toast.error(`Only ${item.stock} items available in stock`);
+      return;
+    }
+    
+    // Add item directly to cart
+    addItem(
+      {
+        id: item.id,
+        name: item.name,
+        sku: item.sku,
+        price: item.unitPrice || 0,
+        type: item.type,
+      },
+      qty
+    );
+    
+    // Show success toast
+    toast.success("Item added to cart");
+    
+    // Reset quantity to 1 after adding
+    setItemQuantities(prev => ({
+      ...prev,
+      [item.id]: 1,
+    }));
+    
+    // Open the full Cart bottom sheet immediately
+    setCartViewModalOpen(true);
+  };
+
   const handleDeleteAgreementInventory = (id: string) => {
     setAgreementInventory(agreementInventory.filter(item => item.id !== id));
     toast.success("Item removed from agreement inventory");
@@ -112,6 +198,11 @@ const Inventory = () => {
     } else {
       navigate("/inventory/new");
     }
+  };
+
+  const handleViewModeChange = (mode: "list" | "grid") => {
+    setViewMode(mode);
+    localStorage.setItem("inventory-view-mode", mode);
   };
 
   // Mock equipment notes data
@@ -203,9 +294,9 @@ const Inventory = () => {
         title="Inventory"
       />
       
-      <div className="flex-1 overflow-y-auto scrollable px-4 pb-6" style={{ paddingTop: 'calc(3.5rem + env(safe-area-inset-top) + 0.5rem)' }}>
+      <div className="flex-1 overflow-y-auto scrollable px-3 pb-2 space-y-2" style={{ paddingTop: 'calc(3rem + env(safe-area-inset-top) + 0.25rem)' }}>
         {/* Action Buttons */}
-        <div className="flex justify-between gap-2 mt-2 mb-3">
+        <div className="flex justify-between gap-2">
           <button
             onClick={() => {
               setSendCurrentReportModalOpen(true);
@@ -233,11 +324,11 @@ const Inventory = () => {
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex items-center justify-between border-b border-gray-200 mb-2">
+        <div className="flex items-center justify-between border-b border-gray-200">
           <button
             onClick={() => setActiveTab("inventory-services")}
             className={cn(
-              "flex-1 py-2 text-center text-sm font-medium transition-colors",
+              "flex-1 py-1.5 text-center text-xs font-medium transition-colors",
               activeTab === "inventory-services"
                 ? "text-orange-600 border-b-2 border-orange-500"
                 : "text-gray-600 hover:text-orange-600"
@@ -248,7 +339,7 @@ const Inventory = () => {
           <button
             onClick={() => setActiveTab("agreement-inventory")}
             className={cn(
-              "flex-1 py-2 text-center text-sm font-medium transition-colors",
+              "flex-1 py-1.5 text-center text-xs font-medium transition-colors",
               activeTab === "agreement-inventory"
                 ? "text-orange-600 border-b-2 border-orange-500"
                 : "text-gray-600 hover:text-orange-600"
@@ -259,7 +350,7 @@ const Inventory = () => {
           <button
             onClick={() => setActiveTab("equipment-tracking")}
             className={cn(
-              "flex-1 py-2 text-center text-sm font-medium transition-colors",
+              "flex-1 py-1.5 text-center text-xs font-medium transition-colors",
               activeTab === "equipment-tracking"
                 ? "text-orange-600 border-b-2 border-orange-500"
                 : "text-gray-600 hover:text-orange-600"
@@ -271,9 +362,9 @@ const Inventory = () => {
 
         {/* Employee Filter - Only for Equipment Tracking */}
         {activeTab === "equipment-tracking" && (
-          <div className="mb-2">
+          <div>
             <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
-              <SelectTrigger className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-orange-500 focus:border-orange-500">
+              <SelectTrigger className="w-full h-9 text-xs py-2 px-3 border border-gray-200 rounded-lg">
                 <SelectValue placeholder="Filter by employee" />
               </SelectTrigger>
               <SelectContent>
@@ -290,89 +381,94 @@ const Inventory = () => {
           </div>
         )}
 
-        {/* Add Button and Search - Same Row */}
-        <div className="flex items-center gap-2 mb-2">
-          <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input 
-            placeholder="Search by name or SKU..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-            <Button
-              size="sm"
+        {/* Search, View Toggle, and Add Button */}
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1 min-w-0">
+            <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none z-10" />
+            <Input 
+              placeholder="Search by name or SKU..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className={cn(
+                "pl-9 h-9 text-sm py-2",
+                activeTab === "inventory-services" && "pr-20"
+              )}
+            />
+            {activeTab === "inventory-services" && (
+              <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-0.5 bg-gray-100 rounded-lg p-0.5 shrink-0">
+                <button
+                  onClick={() => handleViewModeChange("list")}
+                  className={cn(
+                    "p-1 rounded transition-colors",
+                    viewMode === "list"
+                      ? "bg-orange-500 text-white"
+                      : "text-gray-600 hover:text-gray-800"
+                  )}
+                  aria-label="List view"
+                >
+                  <List className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={() => handleViewModeChange("grid")}
+                  className={cn(
+                    "p-1 rounded transition-colors",
+                    viewMode === "grid"
+                      ? "bg-orange-500 text-white"
+                      : "text-gray-600 hover:text-gray-800"
+                  )}
+                  aria-label="Grid view"
+                >
+                  <Grid3x3 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+          <Button
+            size="sm"
             onClick={handleAddButtonClick}
-            className="bg-orange-500 hover:bg-orange-600 text-white shrink-0"
-            >
+            className="h-9 w-9 p-0 bg-orange-500 hover:bg-orange-600 text-white shrink-0"
+          >
             <Plus className="h-4 w-4" />
-            </Button>
+          </Button>
         </div>
         
         {/* Inventory Cards */}
-        <div className="space-y-2 pt-2">
+        <div className={cn(viewMode === "grid" && activeTab === "inventory-services" ? "grid grid-cols-2 gap-2" : "space-y-2")}>
           {activeTab === "inventory-services" && filteredInventory.map(item => {
-            const isMenuOpen = openMenuId === item.id;
-            
-            return (
-              <div
-                key={item.id}
-                className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 mb-2 flex justify-between items-start"
-              >
-                <div className="flex flex-col flex-1">
-                  <h3 className="text-sm font-semibold text-gray-900">{item.sku}</h3>
-                  <p className="text-base font-medium text-gray-800 mt-1">
-                    {item.name}
-                    {item.type && (
-                      <span className="text-gray-500 font-normal ml-1">({item.type})</span>
-                    )}
-                  </p>
-                  <div className="flex items-center gap-3 mt-2 text-sm">
-                    <span className="text-green-600 font-semibold">Stock: {item.stock}</span>
-                    <span className="text-gray-500">Low Alert: {item.lowStockThreshold}</span>
-                  </div>
-                  {item.type !== "V" && item.unitPrice !== undefined && (
-                    <p className="text-orange-600 font-semibold text-sm mt-1">${item.unitPrice.toFixed(2)}</p>
-                  )}
-                </div>
-                
-                {/* Quick Action Menu Trigger */}
-                <div className="relative">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setOpenMenuId(isMenuOpen ? null : item.id);
-                    }}
-                    className="text-gray-500 hover:text-gray-700 p-1"
-                  >
-                    <MoreVertical className="h-5 w-5" />
-                  </button>
+            if (viewMode === "grid") {
+              const getTypeInitial = (type?: string) => {
+                switch (type) {
+                  case "F": return "F";
+                  case "V": return "V";
+                  case "U": return "U";
+                  default: return "U";
+                }
+              };
 
-                  {/* Dropdown Menu */}
-                  {isMenuOpen && (
-                    <>
-                      <div
-                        className="fixed inset-0 z-10"
-                        onClick={() => setOpenMenuId(null)}
-                      />
-                      <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
-                        <ul className="text-sm text-gray-700">
-                          <li
-                            className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenMenuId(null);
-                              navigate(`/inventory/${item.id}/edit`);
-                            }}
-                          >
-                            Edit Inventory
-                          </li>
-                          <li
-                            className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenMenuId(null);
+              return (
+                <div
+                  key={item.id}
+                  className="bg-white rounded-lg border border-gray-200 overflow-hidden cursor-pointer hover:shadow-md hover:border-primary/30 transition-all duration-200 active:scale-[0.98]"
+                  onClick={() => navigate(`/inventory/${item.id}`)}
+                >
+                  {/* Full-Width Image Section */}
+                  <div className="relative w-full h-32 bg-gray-100 rounded-t-lg overflow-hidden">
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <ImageIcon className="h-8 w-8 text-gray-400" />
+                    </div>
+                    {/* Three-dot menu overlay - positioned in top-right of image */}
+                    <div className="absolute top-1 right-1 z-10" onClick={(e) => e.stopPropagation()}>
+                      <KebabMenu
+                        items={[
+                          {
+                            label: "Edit Inventory",
+                            icon: Edit,
+                            action: () => navigate(`/inventory/${item.id}/edit`),
+                          },
+                          {
+                            label: "Adjust Stock",
+                            icon: Package,
+                            action: () => {
                               setSelectedItemForAdjustment({
                                 id: item.id,
                                 name: item.name,
@@ -380,26 +476,20 @@ const Inventory = () => {
                                 stock: item.stock,
                               });
                               setStockAdjustmentModalOpen(true);
-                            }}
-                          >
-                            Adjust Stock
-                          </li>
-                          <li
-                            className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenMenuId(null);
+                            },
+                          },
+                          {
+                            label: "Add Low Inventory Alert",
+                            icon: AlertTriangle,
+                            action: () => {
                               setSelectedItemForAlert({ id: item.id, threshold: item.lowStockThreshold });
                               setLowAlertModalOpen(true);
-                            }}
-                          >
-                            Add Low Inventory Alert
-                          </li>
-                          <li
-                            className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenMenuId(null);
+                            },
+                          },
+                          {
+                            label: "Add to Damage Goods",
+                            icon: AlertCircle,
+                            action: () => {
                               setSelectedItemForAdjustment({
                                 id: item.id,
                                 name: item.name,
@@ -412,15 +502,12 @@ const Inventory = () => {
                                 remarks: "Item marked as damaged goods",
                               });
                               setStockAdjustmentModalOpen(true);
-                            }}
-                          >
-                            Add to Damage Goods
-                          </li>
-                          <li
-                            className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenMenuId(null);
+                            },
+                          },
+                          {
+                            label: "Add to Tester Item",
+                            icon: AlertCircle,
+                            action: () => {
                               setSelectedItemForAdjustment({
                                 id: item.id,
                                 name: item.name,
@@ -433,22 +520,263 @@ const Inventory = () => {
                                 remarks: "Item marked as tester/demo unit",
                               });
                               setStockAdjustmentModalOpen(true);
-                            }}
-                          >
-                            Add to Tester Item
-                          </li>
-                        </ul>
+                            },
+                          },
+                        ]}
+                        menuWidth="w-48"
+                        triggerClassName="bg-white/90 hover:bg-white shadow-sm"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Content Section */}
+                  <div className="p-2.5">
+                    {/* Item Title */}
+                    <h3 className="text-sm font-semibold text-gray-900 mb-1 truncate">
+                      {item.name}
+                    </h3>
+
+                    {/* SKU and Type */}
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <span className="text-[9px] text-gray-600 font-medium">
+                        SKU: {item.sku}
+                      </span>
+                      <span className="text-gray-400">•</span>
+                      <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-[9px] font-medium rounded-full">
+                        {getTypeInitial(item.type)}
+                      </span>
+                    </div>
+
+                    {/* Stock & Price Two-Column Layout */}
+                    <div className="grid grid-cols-2 gap-1.5 mb-1.5">
+                      <div>
+                        <p className="text-[9px] text-gray-500 mb-0.5">Stock</p>
+                        <p className="text-sm font-bold text-gray-900">{item.stock}</p>
                       </div>
-                    </>
-                  )}
+                      <div>
+                        <p className="text-[9px] text-gray-500 mb-0.5">Price</p>
+                        <p className="text-sm font-bold text-orange-600">
+                          {item.type !== "V" && item.unitPrice !== undefined 
+                            ? `$${item.unitPrice.toFixed(2)}` 
+                            : "—"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Quantity Counter */}
+                    {item.stock > 0 && (
+                      <div className="mb-1.5 flex items-center justify-center">
+                        <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 shadow-sm">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              updateItemQuantity(item.id, -1);
+                            }}
+                            disabled={getItemQuantity(item.id) <= 1}
+                            className="h-6 w-6 p-0 hover:bg-orange-100 hover:text-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            <Minus className="h-3 w-3" />
+                          </Button>
+                          <span className="text-sm font-semibold min-w-[1.5rem] text-center text-gray-900">
+                            {getItemQuantity(item.id)}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              updateItemQuantity(item.id, 1);
+                            }}
+                            disabled={getItemQuantity(item.id) >= item.stock}
+                            className="h-6 w-6 p-0 hover:bg-orange-100 hover:text-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Add to Cart Button */}
+                    <div className="pt-1.5 border-t border-gray-100">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAddToCart(item);
+                        }}
+                        disabled={item.stock === 0}
+                        className={cn(
+                          "w-full flex items-center justify-center gap-1.5 py-2.5 px-3 border rounded-xl text-xs font-semibold shadow-sm hover:shadow-md transition-all duration-200",
+                          item.stock === 0
+                            ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                            : "bg-orange-50 hover:bg-orange-100 border-orange-200 text-orange-700"
+                        )}
+                      >
+                        <ShoppingCart className="h-4 w-4" />
+                        <span>Add to Cart</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
+              );
+            }
+            
+            // List View
+            const getTypeInitial = (type?: string) => {
+              switch (type) {
+                case "F": return "F";
+                case "V": return "V";
+                case "U": return "U";
+                default: return "U";
+              }
+            };
+
+            return (
+              <div
+                key={item.id}
+                className="bg-white p-3 rounded-lg border border-gray-200 hover:shadow-md hover:border-primary/30 transition-all duration-200"
+              >
+                <div className="flex justify-between items-start mb-2.5">
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="text-[9px] text-gray-600 font-medium">
+                        SKU: {item.sku}
+                      </span>
+                      <span className="text-gray-400">•</span>
+                      <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-[9px] font-medium rounded-full">
+                        {getTypeInitial(item.type)}
+                      </span>
+                    </div>
+                    <p className="text-base font-medium text-gray-800 mt-1">
+                      {item.name}
+                    </p>
+                    <div className="flex items-center gap-3 mt-2 text-sm">
+                      <span className="text-green-600 font-semibold">Stock: {item.stock}</span>
+                      <span className="text-gray-500">Low Alert: {item.lowStockThreshold}</span>
+                    </div>
+                    {item.type !== "V" && item.unitPrice !== undefined && (
+                      <p className="text-orange-600 font-semibold text-sm mt-1">${item.unitPrice.toFixed(2)}</p>
+                    )}
+                  </div>
+                  
+                  {/* Quick Action Menu */}
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <KebabMenu
+                      items={[
+                        {
+                          label: "Add Low Inventory Alert",
+                          icon: AlertTriangle,
+                          action: () => {
+                            setSelectedItemForAlert({ id: item.id, threshold: item.lowStockThreshold });
+                            setLowAlertModalOpen(true);
+                          },
+                        },
+                        {
+                          label: "Add to Damage Goods",
+                          icon: AlertCircle,
+                          action: () => {
+                            setSelectedItemForAdjustment({
+                              id: item.id,
+                              name: item.name,
+                              sku: item.sku,
+                              stock: item.stock,
+                            });
+                            setStockAdjustmentDefaults({
+                              transactionType: "stock-out",
+                              adjustmentReason: "Marked as Damaged",
+                              remarks: "Item marked as damaged goods",
+                            });
+                            setStockAdjustmentModalOpen(true);
+                          },
+                        },
+                        {
+                          label: "Add to Tester Item",
+                          icon: AlertCircle,
+                          action: () => {
+                            setSelectedItemForAdjustment({
+                              id: item.id,
+                              name: item.name,
+                              sku: item.sku,
+                              stock: item.stock,
+                            });
+                            setStockAdjustmentDefaults({
+                              transactionType: "stock-out",
+                              adjustmentReason: "Marked as Demo Units",
+                              remarks: "Item marked as tester/demo unit",
+                            });
+                            setStockAdjustmentModalOpen(true);
+                          },
+                        },
+                      ]}
+                      menuWidth="w-48"
+                    />
+                  </div>
+                </div>
+                
+                {/* Quantity Counter */}
+                {item.stock > 0 && (
+                  <div className="mb-2 flex items-center justify-center">
+                    <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 shadow-sm">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateItemQuantity(item.id, -1);
+                        }}
+                        disabled={getItemQuantity(item.id) <= 1}
+                        className="h-6 w-6 p-0 hover:bg-orange-100 hover:text-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <Minus className="h-3 w-3" />
+                      </Button>
+                      <span className="text-sm font-semibold min-w-[1.5rem] text-center text-gray-900">
+                        {getItemQuantity(item.id)}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateItemQuantity(item.id, 1);
+                        }}
+                        disabled={getItemQuantity(item.id) >= item.stock}
+                        className="h-6 w-6 p-0 hover:bg-orange-100 hover:text-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Add to Cart Button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleAddToCart(item);
+                  }}
+                  disabled={item.stock === 0}
+                  className={cn(
+                    "w-full flex items-center justify-center gap-1.5 py-2.5 px-3 border rounded-xl text-xs font-semibold shadow-sm hover:shadow-md transition-all duration-200",
+                    item.stock === 0
+                      ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                      : "bg-orange-50 hover:bg-orange-100 border-orange-200 text-orange-700"
+                  )}
+                >
+                  <ShoppingCart className="h-4 w-4" />
+                  <span>Add to Cart</span>
+                </button>
               </div>
             );
           })}
           
           {/* Agreement Inventory Tab */}
           {activeTab === "agreement-inventory" && (
-            <div className="space-y-2 pt-2">
+            <div className="space-y-2">
               {filteredAgreementInventory.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <p>No items available for Agreement Inventory</p>
@@ -457,7 +785,7 @@ const Inventory = () => {
                 filteredAgreementInventory.map(item => (
                   <div
                     key={item.id}
-                    className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 mb-2 flex justify-between items-center"
+                    className="bg-white p-3 rounded-lg shadow-sm border border-gray-200 flex justify-between items-center"
                   >
                     <div className="flex flex-col flex-1">
                       <p className="text-xs text-gray-500">{item.inventoryId}</p>
@@ -478,7 +806,7 @@ const Inventory = () => {
 
           {/* Equipment Tracking Tab */}
           {activeTab === "equipment-tracking" && (
-            <div className="space-y-2 pt-2">
+            <div className="space-y-2">
               {filteredEquipmentTracking.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <p>No equipment tracking data available</p>
@@ -490,11 +818,10 @@ const Inventory = () => {
                 </div>
               ) : (
                 filteredEquipmentTracking.map((equipment) => {
-                  const isMenuOpen = equipmentMenuOpenId === equipment.id;
                   return (
                     <div
                       key={equipment.id}
-                      className="bg-white p-3 rounded-xl shadow-sm border border-gray-200 mb-2"
+                      className="bg-white p-3 rounded-lg shadow-sm border border-gray-200"
                     >
                       <div className="flex justify-between items-start">
                         <div className="flex flex-col flex-1">
@@ -522,75 +849,46 @@ const Inventory = () => {
                           </span>
 
                           {/* Quick Action Menu */}
-                          <div className="relative">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEquipmentMenuOpenId(isMenuOpen ? null : equipment.id);
-                              }}
-                              className="text-gray-500 hover:text-gray-700 p-1"
-                            >
-                              <MoreVertical className="h-5 w-5" />
-                            </button>
-
-                            {/* Dropdown Menu */}
-                            {isMenuOpen && (
-                              <>
-                                <div
-                                  className="fixed inset-0 z-10"
-                                  onClick={() => setEquipmentMenuOpenId(null)}
-                                />
-                                <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
-                                  <ul className="text-sm text-gray-700">
-                                    <li
-                                      className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setEquipmentMenuOpenId(null);
-                                        setSelectedEquipmentForAssign({
-                                          id: equipment.id,
-                                          currentEmployeeId: equipment.employeeId,
-                                        });
-                                        setAssignEmployeeModalOpen(true);
-                                      }}
-                                    >
-                                      Assign / Reassign Employee
-                                    </li>
-                                    <li
-                                      className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setEquipmentMenuOpenId(null);
-                                        setSelectedEquipmentForNote(equipment.id);
-                                        setAddNoteModalOpen(true);
-                                      }}
-                                    >
-                                      Add / View Note
-                                    </li>
-                                    <li
-                                      className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setEquipmentMenuOpenId(null);
-                                        setSelectedEquipmentForUpdate({
-                                          id: equipment.id,
-                                          inventoryName: equipment.inventoryName,
-                                          serialNumber: equipment.serialNumber,
-                                        });
-                                        setUpdateEquipmentModalOpen(true);
-                                      }}
-                                    >
-                                      Update Equipment
-                                    </li>
-                                  </ul>
-                                </div>
-                              </>
-                            )}
-                          </div>
+                          <KebabMenu
+                            items={[
+                              {
+                                label: "Assign / Reassign Employee",
+                                icon: UserCog,
+                                action: () => {
+                                  setSelectedEquipmentForAssign({
+                                    id: equipment.id,
+                                    currentEmployeeId: equipment.employeeId,
+                                  });
+                                  setAssignEmployeeModalOpen(true);
+                                },
+                              },
+                              {
+                                label: "Add / View Note",
+                                icon: FileText,
+                                action: () => {
+                                  setSelectedEquipmentForNote(equipment.id);
+                                  setAddNoteModalOpen(true);
+                                },
+                              },
+                              {
+                                label: "Update Equipment",
+                                icon: Settings,
+                                action: () => {
+                                  setSelectedEquipmentForUpdate({
+                                    id: equipment.id,
+                                    inventoryName: equipment.inventoryName,
+                                    serialNumber: equipment.serialNumber,
+                                  });
+                                  setUpdateEquipmentModalOpen(true);
+                                },
+                              },
+                            ]}
+                            menuWidth="w-48"
+                          />
                         </div>
-                      </div>
-                    </div>
-                  );
+                </div>
+              </div>
+            );
                 })
               )}
             </div>
@@ -638,7 +936,7 @@ const Inventory = () => {
             reason,
             remarks,
           });
-          toast.success("Stock adjustment saved successfully");
+          showSuccessToast("Transaction recorded successfully");
           setStockAdjustmentModalOpen(false);
           setSelectedItemForAdjustment(null);
           setStockAdjustmentDefaults(null);
@@ -718,7 +1016,7 @@ const Inventory = () => {
             ],
           });
 
-          toast.success("Note added successfully");
+          showSuccessToast("Note added successfully");
           setAddNoteModalOpen(false);
           setSelectedEquipmentForNote(null);
         }}
@@ -745,7 +1043,7 @@ const Inventory = () => {
               status: "Unassigned" as const,
             };
             setEquipmentTracking([...equipmentTracking, newEquipment]);
-            toast.success("Equipment added successfully");
+            showSuccessToast("Equipment added successfully");
             setAddEquipmentModalOpen(false);
           }
         }}
@@ -777,7 +1075,7 @@ const Inventory = () => {
               }
               return equipment;
             }));
-            toast.success("Equipment updated successfully");
+            showSuccessToast("Equipment updated successfully");
             setUpdateEquipmentModalOpen(false);
             setSelectedEquipmentForUpdate(null);
           }
@@ -864,6 +1162,36 @@ const Inventory = () => {
           setSendStockInOutReportModalOpen(false);
         }}
       />
+
+      {/* Cart View Modal */}
+      <CartViewModal
+        isOpen={cartViewModalOpen}
+        onClose={() => setCartViewModalOpen(false)}
+        onShopMore={() => {
+          // Ensure we're on inventory-services tab with grid view
+          setActiveTab("inventory-services");
+          setViewMode("grid");
+          localStorage.setItem("inventory-view-mode", "grid");
+        }}
+      />
+
+      {/* Floating Cart Icon */}
+      {getTotalItems() > 0 && activeTab === "inventory-services" && (
+        <button
+          onClick={() => setCartViewModalOpen(true)}
+          className="fixed bottom-24 right-4 z-40 bg-orange-500 hover:bg-orange-600 text-white rounded-full p-4 shadow-lg touch-target transition-all duration-200 active:scale-95"
+          style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
+        >
+          <div className="relative">
+            <ShoppingCart className="h-6 w-6" />
+            {getTotalItems() > 0 && (
+              <span className="absolute -top-2 -right-2 bg-white text-orange-500 text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                {getTotalItems() > 99 ? '99+' : getTotalItems()}
+              </span>
+            )}
+          </div>
+        </button>
+      )}
     </div>
   );
 };

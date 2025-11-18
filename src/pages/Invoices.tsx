@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import MobileHeader from "@/components/layout/MobileHeader";
 import InvoiceCard from "@/components/cards/InvoiceCard";
@@ -14,18 +14,11 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import KebabMenu, { KebabMenuItem } from "@/components/common/KebabMenu";
 import {
   Plus,
   Search,
   FileText,
-  MoreVertical,
   Eye,
   Mail,
   MessageSquare,
@@ -37,6 +30,7 @@ import {
   Bell,
 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 type InvoiceTab = "single" | "recurring" | "deactivated";
 type InvoiceStatusFilter = "all" | "paid" | "open";
@@ -59,8 +53,23 @@ const Invoices = () => {
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showInvoiceDueAlertModal, setShowInvoiceDueAlertModal] = useState(false);
 
+  // Check if user is an employee
+  const userType = localStorage.getItem("userType");
+  const isEmployee = userType === "employee";
+
+  // Reset active tab if employee tries to access deactivated tab
+  useEffect(() => {
+    if (isEmployee && activeTab === "deactivated") {
+      setActiveTab("single");
+    }
+  }, [isEmployee, activeTab]);
+
   const handleTabChange = (value: string) => {
     const tabValue = value as InvoiceTab;
+    // Prevent employees from accessing deactivated tab
+    if (isEmployee && tabValue === "deactivated") {
+      return;
+    }
     setActiveTab(tabValue);
     if (tabValue !== "deactivated") {
       return;
@@ -128,9 +137,8 @@ const Invoices = () => {
   };
 
   const handlePaymentMethodSelect = (method: string) => {
-    if (selectedInvoice) {
-      toast.success(`Processing ${method} payment for ${selectedInvoice.id}...`);
-    }
+    // Payment processing toast removed - only success toast shown after payment completes
+    // No processing toast for cash payments
   };
 
   const handlePaymentModalClose = () => {
@@ -226,252 +234,124 @@ const Invoices = () => {
 
   const renderActionButtons = (invoice: Invoice, type: InvoiceTab) => {
     if (type === "deactivated") {
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 rounded-full hover:bg-orange-50"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuItem
-              onSelect={(event) => {
-                event.preventDefault();
-                handleMenuAction(invoice, "preview");
-              }}
-            >
-              <Eye className="mr-2 h-4 w-4 text-muted-foreground" />
-              Preview
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={(event) => {
-                event.preventDefault();
-                handleMenuAction(invoice, "activate");
-              }}
-            >
-              <RotateCcw className="mr-2 h-4 w-4 text-muted-foreground" />
-              Activate
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      );
+      const items: KebabMenuItem[] = [
+        {
+          label: "Preview",
+          icon: Eye,
+          action: () => handleMenuAction(invoice, "preview"),
+        },
+        {
+          label: "Activate",
+          icon: RotateCcw,
+          action: () => handleMenuAction(invoice, "activate"),
+        },
+      ];
+      return <KebabMenu items={items} menuWidth="w-44" />;
     }
 
     if (invoice.status === "Paid") {
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 rounded-full hover:bg-orange-50"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem
-              onSelect={(event) => {
-                event.preventDefault();
-                handleMenuAction(invoice, "preview");
-              }}
-            >
-              <Eye className="mr-2 h-4 w-4 text-muted-foreground" />
-              Preview
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={(event) => {
-                event.preventDefault();
-                handleMenuAction(invoice, "send-email");
-              }}
-            >
-              <Mail className="mr-2 h-4 w-4 text-muted-foreground" />
-              Send Email
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={(event) => {
-                event.preventDefault();
-                handleMenuAction(invoice, "send-sms");
-              }}
-            >
-              <MessageSquare className="mr-2 h-4 w-4 text-muted-foreground" />
-              Send SMS
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={(event) => {
-                event.preventDefault();
-                handleMenuAction(invoice, "reassign");
-              }}
-            >
-              <UserCog className="mr-2 h-4 w-4 text-muted-foreground" />
-              Reassign Employee
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onSelect={(event) => {
-                event.preventDefault();
-                handleMenuAction(invoice, "refund");
-              }}
-            >
-              <RotateCcw className="mr-2 h-4 w-4 text-muted-foreground" />
-              Refund
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      );
+      const items: KebabMenuItem[] = [
+        {
+          label: "Preview",
+          icon: Eye,
+          action: () => handleMenuAction(invoice, "preview"),
+        },
+        {
+          label: "Send Email",
+          icon: Mail,
+          action: () => handleMenuAction(invoice, "send-email"),
+        },
+        {
+          label: "Send SMS",
+          icon: MessageSquare,
+          action: () => handleMenuAction(invoice, "send-sms"),
+        },
+        {
+          label: "Reassign Employee",
+          icon: UserCog,
+          action: () => handleMenuAction(invoice, "reassign"),
+        },
+        {
+          label: "Refund",
+          icon: RotateCcw,
+          action: () => handleMenuAction(invoice, "refund"),
+          separator: true,
+        },
+      ];
+      return <KebabMenu items={items} menuWidth="w-48" />;
     }
 
     if (invoice.status === "Open") {
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 rounded-full hover:bg-orange-50"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem
-              onSelect={(event) => {
-                event.preventDefault();
-                handleMenuAction(invoice, "preview");
-              }}
-            >
-              <Eye className="mr-2 h-4 w-4 text-muted-foreground" />
-              Preview
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={(event) => {
-                event.preventDefault();
-                handleMenuAction(invoice, "send-email");
-              }}
-            >
-              <Mail className="mr-2 h-4 w-4 text-muted-foreground" />
-              Send Email
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={(event) => {
-                event.preventDefault();
-                handleMenuAction(invoice, "send-sms");
-              }}
-            >
-              <MessageSquare className="mr-2 h-4 w-4 text-muted-foreground" />
-              Send SMS
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onSelect={(event) => {
-                event.preventDefault();
-                handleMenuAction(invoice, "edit");
-              }}
-            >
-              <Edit className="mr-2 h-4 w-4 text-muted-foreground" />
-              Edit Invoice
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={(event) => {
-                event.preventDefault();
-                handleMenuAction(invoice, "doc-history");
-              }}
-            >
-              <History className="mr-2 h-4 w-4 text-muted-foreground" />
-              Doc History
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={(event) => {
-                event.preventDefault();
-                handleMenuAction(invoice, "reassign");
-              }}
-            >
-              <UserCog className="mr-2 h-4 w-4 text-muted-foreground" />
-              Reassign Employee
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={(event) => {
-                event.preventDefault();
-                handleMenuAction(invoice, "deactivate");
-              }}
-            >
-              <XCircle className="mr-2 h-4 w-4 text-muted-foreground" />
-              Deactivate
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      );
+      const items: KebabMenuItem[] = [
+        {
+          label: "Preview",
+          icon: Eye,
+          action: () => handleMenuAction(invoice, "preview"),
+        },
+        {
+          label: "Send Email",
+          icon: Mail,
+          action: () => handleMenuAction(invoice, "send-email"),
+        },
+        {
+          label: "Send SMS",
+          icon: MessageSquare,
+          action: () => handleMenuAction(invoice, "send-sms"),
+        },
+        {
+          label: "Edit Invoice",
+          icon: Edit,
+          action: () => handleMenuAction(invoice, "edit"),
+          separator: true,
+        },
+        {
+          label: "Doc History",
+          icon: History,
+          action: () => handleMenuAction(invoice, "doc-history"),
+        },
+        {
+          label: "Reassign Employee",
+          icon: UserCog,
+          action: () => handleMenuAction(invoice, "reassign"),
+        },
+        {
+          label: "Deactivate",
+          icon: XCircle,
+          action: () => handleMenuAction(invoice, "deactivate"),
+        },
+      ];
+      return <KebabMenu items={items} menuWidth="w-56" />;
     }
 
-    return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 rounded-full hover:bg-orange-50"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <MoreVertical className="h-4 w-4 text-muted-foreground" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
-          <DropdownMenuItem
-            onSelect={(event) => {
-              event.preventDefault();
-              handleMenuAction(invoice, "preview");
-            }}
-          >
-            <Eye className="mr-2 h-4 w-4 text-muted-foreground" />
-            Preview
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onSelect={(event) => {
-              event.preventDefault();
-              handleMenuAction(invoice, "send-email");
-            }}
-          >
-            <Mail className="mr-2 h-4 w-4 text-muted-foreground" />
-            Send Email
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onSelect={(event) => {
-              event.preventDefault();
-              handleMenuAction(invoice, "send-sms");
-            }}
-          >
-            <MessageSquare className="mr-2 h-4 w-4 text-muted-foreground" />
-            Send SMS
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onSelect={(event) => {
-              event.preventDefault();
-              handleMenuAction(invoice, "reassign");
-            }}
-          >
-            <UserCog className="mr-2 h-4 w-4 text-muted-foreground" />
-            Reassign Employee
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onSelect={(event) => {
-              event.preventDefault();
-              handleMenuAction(invoice, "refund");
-            }}
-          >
-            <RotateCcw className="mr-2 h-4 w-4 text-muted-foreground" />
-            Refund
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    );
+    const items: KebabMenuItem[] = [
+      {
+        label: "Preview",
+        icon: Eye,
+        action: () => handleMenuAction(invoice, "preview"),
+      },
+      {
+        label: "Send Email",
+        icon: Mail,
+        action: () => handleMenuAction(invoice, "send-email"),
+      },
+      {
+        label: "Send SMS",
+        icon: MessageSquare,
+        action: () => handleMenuAction(invoice, "send-sms"),
+      },
+      {
+        label: "Reassign Employee",
+        icon: UserCog,
+        action: () => handleMenuAction(invoice, "reassign"),
+      },
+      {
+        label: "Refund",
+        icon: RotateCcw,
+        action: () => handleMenuAction(invoice, "refund"),
+        separator: true,
+      },
+    ];
+    return <KebabMenu items={items} menuWidth="w-48" />;
   };
 
   const renderInvoices = (type: InvoiceTab) => {
@@ -574,24 +454,28 @@ const Invoices = () => {
               className="pl-9 h-9 text-sm py-2"
             />
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowInvoiceDueAlertModal(true)}
-            className="h-9 px-2 sm:px-3 text-xs font-medium flex-shrink-0"
-          >
-            <Bell className="h-3.5 w-3.5 sm:mr-1.5" />
-            <span className="hidden sm:inline">Invoice Due Alert</span>
-            <span className="sm:hidden">Alert</span>
-          </Button>
+          {!isEmployee && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowInvoiceDueAlertModal(true)}
+              className="h-9 px-2 sm:px-3 text-xs font-medium flex-shrink-0"
+            >
+              <Bell className="h-3.5 w-3.5 sm:mr-1.5" />
+              <span className="hidden sm:inline">Invoice Due Alert</span>
+              <span className="sm:hidden">Alert</span>
+            </Button>
+          )}
         </div>
         
         {/* Invoice Type Tabs */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-3">
-          <TabsList className="w-full grid grid-cols-3 h-9">
+          <TabsList className={cn("w-full grid h-9", isEmployee ? "grid-cols-2" : "grid-cols-3")}>
             <TabsTrigger value="single" className="text-xs py-1.5 px-2">Single</TabsTrigger>
             <TabsTrigger value="recurring" className="text-xs py-1.5 px-2">Recurring</TabsTrigger>
-            <TabsTrigger value="deactivated" className="text-xs py-1.5 px-2">Deactivated</TabsTrigger>
+            {!isEmployee && (
+              <TabsTrigger value="deactivated" className="text-xs py-1.5 px-2">Deactivated</TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="single" className="mt-1.5">
@@ -600,9 +484,11 @@ const Invoices = () => {
           <TabsContent value="recurring" className="mt-1.5">
             {renderInvoices("recurring")}
           </TabsContent>
-          <TabsContent value="deactivated" className="mt-1.5">
-            {renderInvoices("deactivated")}
-          </TabsContent>
+          {!isEmployee && (
+            <TabsContent value="deactivated" className="mt-1.5">
+              {renderInvoices("deactivated")}
+            </TabsContent>
+          )}
         </Tabs>
       </div>
 

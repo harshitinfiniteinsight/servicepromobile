@@ -1,26 +1,108 @@
 import { useNavigate } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import MobileHeader from "@/components/layout/MobileHeader";
 import MobileCard from "@/components/mobile/MobileCard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Briefcase, DollarSign, Calendar, TrendingUp, Users, ClipboardList, Package, BarChart3, Settings } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  FileText,
+  Briefcase,
+  DollarSign,
+  Calendar,
+  TrendingUp,
+  Users,
+  ClipboardList,
+  Package,
+  BarChart3,
+  Settings,
+  User,
+  Lock,
+  Shield,
+  Building2,
+  CreditCard,
+  Globe,
+  HelpCircle,
+  LogOut,
+} from "lucide-react";
 import { mockAppointments, mockInvoices, mockEstimates, mockJobs } from "@/data/mobileMockData";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 const Index = () => {
   const navigate = useNavigate();
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+
+  // Get user's first name from localStorage or use fallback
+  const getUserFirstName = () => {
+    const userName = localStorage.getItem("userName") || localStorage.getItem("userFullName");
+    if (userName) {
+      // Extract first name from full name
+      const firstName = userName.split(" ")[0];
+      return firstName;
+    }
+    // Try to get from profile data if stored
+    const profileData = localStorage.getItem("userProfile");
+    if (profileData) {
+      try {
+        const profile = JSON.parse(profileData);
+        if (profile.fullName) {
+          return profile.fullName.split(" ")[0];
+        }
+      } catch (e) {
+        // Ignore parse errors
+      }
+    }
+    // Fallback to default
+    return "User";
+  };
+
+  const userName = getUserFirstName();
 
   useEffect(() => {
     const isAuthenticated = localStorage.getItem("isAuthenticated");
     const showWalkthrough = localStorage.getItem("showWalkthrough");
+    const userType = localStorage.getItem("userType");
     
     if (!isAuthenticated) {
       navigate("/signin");
     } else if (showWalkthrough === "true") {
       navigate("/walkthrough");
+    } else if (userType === "employee") {
+      // Redirect employees to employee dashboard
+      navigate("/employee-dashboard", { replace: true });
     }
   }, [navigate]);
+
+  const handleLogout = () => {
+    localStorage.removeItem("isAuthenticated");
+    toast.success("Logged out successfully");
+    navigate("/signin");
+  };
+
+  const menuItems = [
+    { label: "Profile", icon: User, path: "/settings/profile" },
+    { label: "Change Password", icon: Lock, path: "/settings/change-password" },
+    { label: "Permission Settings", icon: Shield, path: "/settings/permissions" },
+    { label: "Business Policies", icon: Building2, path: "/settings/business-policies" },
+    { label: "Payment Settings", icon: CreditCard, path: "/settings/payment-methods" },
+    { label: "Change App Language", icon: Globe, path: "/settings/language" },
+    { label: "Help", icon: HelpCircle, path: "/settings/help" },
+  ];
 
   // Calculate real stats from mock data
   const today = new Date().toISOString().split('T')[0];
@@ -57,9 +139,51 @@ const Index = () => {
       <MobileHeader 
         title="Dashboard"
         actions={
-          <Button size="sm" variant="ghost" onClick={() => navigate("/settings")}>
-            <Settings className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <span className="text-sm sm:text-[15px] font-semibold text-gray-600 whitespace-nowrap">
+              Hello {userName}!
+            </span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="ghost" className="h-8 w-8 p-0 shrink-0" onClick={(e) => e.stopPropagation()}>
+                  <Settings className="h-4 w-4 text-gray-700" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="w-56 rounded-xl border border-gray-200 bg-white shadow-lg p-2"
+                sideOffset={4}
+              >
+                {menuItems.map((item, index) => {
+                  const Icon = item.icon;
+                  return (
+                    <DropdownMenuItem
+                      key={index}
+                      onSelect={(e) => {
+                        e.preventDefault();
+                        navigate(item.path);
+                      }}
+                      className="flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer hover:bg-gray-100 focus:bg-gray-100 min-h-[44px]"
+                    >
+                      <Icon className="mr-3 h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                      <span>{item.label}</span>
+                    </DropdownMenuItem>
+                  );
+                })}
+                <DropdownMenuSeparator className="my-1.5 bg-gray-200" />
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    setShowLogoutDialog(true);
+                  }}
+                  className="flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer text-red-600 hover:text-red-700 hover:bg-red-50 focus:text-red-700 focus:bg-red-50 min-h-[44px]"
+                >
+                  <LogOut className="mr-3 h-4 w-4 flex-shrink-0 text-red-600" />
+                  <span>Logout</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         }
       />
 
@@ -230,6 +354,34 @@ const Index = () => {
           </div>
         )}
       </div>
+
+      {/* Logout Confirmation Dialog */}
+      <Dialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm Logout</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to logout? You will need to sign in again to access your account.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-row gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setShowLogoutDialog(false)}
+              className="flex-1 sm:flex-initial"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleLogout}
+              className="flex-1 sm:flex-initial"
+            >
+              Logout
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

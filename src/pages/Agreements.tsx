@@ -3,10 +3,10 @@ import { useNavigate } from "react-router-dom";
 import MobileHeader from "@/components/layout/MobileHeader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import KebabMenu, { KebabMenuItem } from "@/components/common/KebabMenu";
 import MinimumDepositPercentageModal from "@/components/modals/MinimumDepositPercentageModal";
 import { mockAgreements } from "@/data/mobileMockData";
-import { Plus, Calendar, DollarSign, MoreHorizontal, Percent } from "lucide-react";
+import { Plus, Calendar, DollarSign, Percent, Eye, Mail, MessageSquare, Edit, CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { statusColors } from "@/data/mobileMockData";
 import { toast } from "sonner";
@@ -70,16 +70,16 @@ const Agreements = () => {
         <div className="space-y-2">
           {mockAgreements.map(agreement => {
             const isPaid = agreement.status === "Paid";
-            const menuItems = isPaid
+            const kebabMenuItems: KebabMenuItem[] = isPaid
               ? [
-                  { label: "Preview Agreement", action: "preview" },
+                  { label: "Preview", icon: Eye, action: () => handleMenuAction(agreement.id, "preview") },
                 ]
               : [
-                  { label: "Preview", action: "preview" },
-                  { label: "Send Email", action: "send-email" },
-                  { label: "Send SMS", action: "send-sms" },
-                  { label: "Edit Agreement", action: "edit" },
-                  { label: "Pay", action: "pay" },
+                  { label: "Preview", icon: Eye, action: () => handleMenuAction(agreement.id, "preview") },
+                  { label: "Send Email", icon: Mail, action: () => handleMenuAction(agreement.id, "send-email") },
+                  { label: "Send SMS", icon: MessageSquare, action: () => handleMenuAction(agreement.id, "send-sms") },
+                  { label: "Edit Agreement", icon: Edit, action: () => handleMenuAction(agreement.id, "edit") },
+                  { label: "Pay", icon: CreditCard, action: () => handleMenuAction(agreement.id, "pay") },
                 ];
 
             return (
@@ -110,28 +110,7 @@ const Agreements = () => {
                       <span className="text-lg font-bold whitespace-nowrap">${agreement.monthlyAmount.toFixed(2)}</span>
                     </div>
                     <p className="text-[10px] text-muted-foreground text-right whitespace-nowrap">per month</p>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 mt-0.5"
-                          onClick={e => e.stopPropagation()}
-                        >
-                          <MoreHorizontal className="h-3.5 w-3.5" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" sideOffset={4} className="w-44">
-                        {menuItems.map(item => (
-                          <DropdownMenuItem
-                            key={item.action}
-                            onSelect={() => handleMenuAction(agreement.id, item.action)}
-                          >
-                            {item.label}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <KebabMenu items={kebabMenuItems} menuWidth="w-44" />
                   </div>
                 </div>
               </div>

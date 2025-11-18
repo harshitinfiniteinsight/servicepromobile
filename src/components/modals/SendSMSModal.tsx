@@ -1,88 +1,128 @@
 import { useState, useEffect } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { X } from "lucide-react";
+import { toast } from "sonner";
 
 interface SendSMSModalProps {
   open: boolean;
-  onOpenChange: (open: boolean) => void;
-  customerName: string;
-  phoneNumber: string;
+  onClose: () => void;
+  customer: {
+    id: string;
+    name: string;
+    phone: string;
+    email?: string;
+  } | null;
 }
 
-export const SendSMSModal = ({
+const SendSMSModal = ({
   open,
-  onOpenChange,
-  customerName,
-  phoneNumber,
+  onClose,
+  customer,
 }: SendSMSModalProps) => {
-  const [countryCode, setCountryCode] = useState("+1");
-  const [phone, setPhone] = useState(phoneNumber);
+  const [phone, setPhone] = useState("");
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
-    if (open) {
-      setPhone(phoneNumber);
+    if (open && customer) {
+      setPhone(customer.phone);
+      setMessage("");
     }
-  }, [phoneNumber, open]);
+  }, [open, customer]);
 
   const handleSend = () => {
-    // SMS sending logic here
-    console.log("Sending SMS to:", `${countryCode}${phone}`);
-    onOpenChange(false);
+    if (!phone || phone.trim().length === 0) {
+      toast.error("Please enter a valid phone number");
+      return;
+    }
+    
+    if (!message || message.trim().length === 0) {
+      toast.error("Please enter a message");
+      return;
+    }
+    
+    // Mock SMS sending
+    console.info("Sending SMS", {
+      to: phone,
+      message: message.trim(),
+      customerName: customer?.name,
+    });
+    
+    toast.success(`Message sent successfully to ${customer?.name || phone}.`);
+    onClose();
   };
 
+  if (!customer) return null;
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] p-0 bg-white">
-        {/* Header with teal background */}
-        <DialogHeader className="bg-teal-600 text-white p-6 pb-4">
-          <div className="flex items-center justify-between">
-            <DialogTitle className="text-2xl font-bold text-white">Send SMS</DialogTitle>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onOpenChange(false)}
-              className="text-white hover:bg-teal-700 h-10 w-auto px-4 rounded-md"
-            >
-              <span className="text-lg font-semibold">Close</span>
-            </Button>
-          </div>
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-sm w-[90%] p-0 gap-0 rounded-2xl bg-white shadow-md [&>button]:hidden">
+        <DialogHeader className="px-5 pt-5 pb-4 flex flex-row items-center justify-between border-b border-gray-100">
+          <DialogTitle className="text-lg font-semibold text-gray-900 text-center flex-1">Send SMS</DialogTitle>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-full hover:bg-gray-100"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4 text-gray-400" />
+          </Button>
         </DialogHeader>
 
-        {/* Content Area */}
-        <div className="p-6 space-y-4">
-          <div className="space-y-2">
-            <Label className="text-gray-600 font-semibold">Mobile Number :</Label>
-            <div className="flex gap-2">
-              <Input
-                value={countryCode}
-                onChange={(e) => setCountryCode(e.target.value)}
-                className="w-24 border border-gray-300 rounded-md"
-                placeholder="+1"
-              />
-              <Input
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="Phone number"
-                className="flex-1 border border-gray-300 rounded-md text-teal-600 font-medium"
-              />
-            </div>
+        <div className="px-4 py-4 space-y-4">
+          {/* Customer Name (non-editable) */}
+          <div className="space-y-1">
+            <Label className="text-sm text-gray-600">Customer Name</Label>
+            <Input
+              type="text"
+              value={customer.name}
+              readOnly
+              disabled
+              className="w-full bg-gray-100 text-gray-700 text-sm rounded-lg px-3 py-2 border border-gray-200 cursor-not-allowed"
+            />
           </div>
 
-          <Button 
-            onClick={handleSend} 
-            className="w-full border-2 border-teal-600 text-teal-600 bg-white hover:bg-teal-50 font-semibold py-2"
-          >
-            SEND
-          </Button>
+          {/* Phone Number (editable) */}
+          <div className="space-y-1">
+            <Label className="text-sm text-gray-600">Phone Number</Label>
+            <Input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="w-full text-gray-800 text-sm rounded-lg px-3 py-2 border border-gray-300 focus:ring-2 focus:ring-orange-500 focus:outline-none"
+            />
+          </div>
+
+          {/* Message */}
+          <div className="space-y-1">
+            <Label className="text-sm text-gray-600">Message</Label>
+            <Textarea
+              placeholder="Type your message..."
+              rows={4}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              className="w-full text-gray-800 text-sm rounded-lg px-3 py-2 border border-gray-300 focus:ring-2 focus:ring-orange-500 focus:outline-none resize-none"
+            />
+          </div>
+
+          {/* Send Button */}
+          <div className="pt-2 flex justify-center">
+            <Button
+              onClick={handleSend}
+              disabled={!phone.trim() || !message.trim()}
+              className="bg-orange-500 text-white text-sm font-medium px-8 py-2 rounded-lg shadow hover:bg-orange-600 transition-all disabled:bg-gray-300 disabled:cursor-not-allowed min-h-[44px]"
+            >
+              Send
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
   );
 };
+
+export default SendSMSModal;
+

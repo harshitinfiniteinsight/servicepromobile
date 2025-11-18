@@ -36,6 +36,7 @@ export function useIsTablet() {
 
 
 
+<<<<<<< HEAD
 
 
 
@@ -44,3 +45,5 @@ export function useIsTablet() {
 
 
 
+=======
+>>>>>>> 2583e60f5aff1f2900ca8814af35042dbf556f8f

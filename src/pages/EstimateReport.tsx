@@ -1,353 +1,164 @@
 import { useState } from "react";
-import { ChevronLeft, Info, Search, Filter, Download, FileText, Mail, FileSpreadsheet, CalendarRange } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import MobileHeader from "@/components/layout/MobileHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
-import { SendEmailModal } from "@/components/modals/SendEmailModal";
-import { toast } from "sonner";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { format } from "date-fns";
-
-// Mock data for Estimate Report
-const estimateData = [
-  { date: "10/01/2025", orderId: "5707664952982", customerName: "gabe saz", employeeName: "Harry Potter", amount: "$13.50", status: "Open" },
-  { date: "09/17/2025", orderId: "1571514281876", customerName: "vishal patel", employeeName: "bruce wayne", amount: "$12.06", status: "Paid" },
-  { date: "09/17/2025", orderId: "1496912420351", customerName: "vishal patel", employeeName: "bruce wayne", amount: "$12.06", status: "Paid" },
-  { date: "08/28/2025", orderId: "8741678877441", customerName: "vishal patel", employeeName: "bruce wayne", amount: "$316.66", status: "Paid" },
-  { date: "08/27/2025", orderId: "3484048724010", customerName: "vishal patel", employeeName: "bruce wayne", amount: "$20.00", status: "Paid" },
-  { date: "08/26/2025", orderId: "2243242736713", customerName: "vishal patel", employeeName: "bruce wayne", amount: "$24.12", status: "Open" },
-  { date: "08/26/2025", orderId: "3078458785481", customerName: "vishal patel", employeeName: "bruce wayne", amount: "$24.12", status: "Open" },
-  { date: "08/26/2025", orderId: "9265704801596", customerName: "vishal patel", employeeName: "bruce wayne", amount: "$240.04", status: "Open" },
-  { date: "08/26/2025", orderId: "2218219726143", customerName: "vishal patel", employeeName: "bruce wayne", amount: "$14.12", status: "Open" },
-];
+import { mockEstimates, mockCustomers } from "@/data/mobileMockData";
+import { Download, DollarSign, FileText, TrendingUp, Users } from "lucide-react";
 
 const EstimateReport = () => {
-  const navigate = useNavigate();
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("all");
-  const [days, setDays] = useState("all");
-  const [employee, setEmployee] = useState("all");
-  const [emailModalOpen, setEmailModalOpen] = useState(false);
-  
-  // Initialize date range to current month
-  const getCurrentMonthRange = () => {
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    return { from: startOfMonth, to: endOfMonth };
-  };
-  
-  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>(getCurrentMonthRange());
+  const [startDate, setStartDate] = useState("2024-01-01");
+  const [endDate, setEndDate] = useState("2024-01-31");
 
-  const handleClearFilters = () => {
-    setSearch("");
-    setStatus("all");
-    setDays("all");
-    setEmployee("all");
-    setDateRange(getCurrentMonthRange());
+  const filteredEstimates = mockEstimates.filter(est => {
+    const estDate = new Date(est.date);
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    return estDate >= start && estDate <= end;
+  });
+
+  const summary = {
+    total: filteredEstimates.length,
+    draft: filteredEstimates.filter(e => e.status === "Draft").length,
+    sent: filteredEstimates.filter(e => e.status === "Sent").length,
+    approved: filteredEstimates.filter(e => e.status === "Approved").length,
+    rejected: filteredEstimates.filter(e => e.status === "Rejected").length,
+    totalValue: filteredEstimates.reduce((sum, e) => sum + e.amount, 0),
+    conversionRate: filteredEstimates.filter(e => e.status === "Sent" || e.status === "Approved").length > 0
+      ? Math.round((filteredEstimates.filter(e => e.status === "Approved").length / 
+          filteredEstimates.filter(e => e.status === "Sent" || e.status === "Approved").length) * 100)
+      : 0,
   };
 
-  const handleDownloadPDF = () => {
-    // Create PDF content
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+  // Top customers by estimate value
+  const customerTotals = filteredEstimates.reduce((acc, est) => {
+    if (!acc[est.customerId]) {
+      acc[est.customerId] = { name: est.customerName, total: 0, count: 0 };
+    }
+    acc[est.customerId].total += est.amount;
+    acc[est.customerId].count += 1;
+    return acc;
+  }, {} as Record<string, { name: string; total: number; count: number }>);
 
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Estimate Report</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 20px; }
-            h1 { color: #333; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            th { background-color: #f2f2f2; font-weight: bold; }
-          </style>
-        </head>
-        <body>
-          <h1>Service Pro911 - Estimate Report</h1>
-          <p>Date Range: ${dateRange.from && dateRange.to 
-            ? `${format(dateRange.from, "MM/dd/yyyy")} TO ${format(dateRange.to, "MM/dd/yyyy")}`
-            : "08/01/2025 TO 10/27/2025"}</p>
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>OrderID</th>
-                <th>Customer Name</th>
-                <th>Employee Name</th>
-                <th>Order Amount</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${estimateData.map(estimate => `
-                <tr>
-                  <td>${estimate.date}</td>
-                  <td>${estimate.orderId}</td>
-                  <td>${estimate.customerName}</td>
-                  <td>${estimate.employeeName}</td>
-                  <td>${estimate.amount}</td>
-                  <td>${estimate.status}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </body>
-      </html>
-    `;
-    
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-    printWindow.print();
-    toast.success("PDF download initiated");
-  };
+  const topCustomers = Object.values(customerTotals)
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 5);
 
-  const handleDownloadCSV = () => {
-    // Create CSV content
-    const headers = ['Date', 'OrderID', 'Customer Name', 'Employee Name', 'Order Amount', 'Status'];
-    const csvRows = [
-      headers.join(','),
-      ...estimateData.map(estimate => [
-        estimate.date,
-        estimate.orderId,
-        `"${estimate.customerName}"`,
-        `"${estimate.employeeName}"`,
-        estimate.amount,
-        estimate.status
-      ].join(','))
-    ];
-    
-    const csvContent = csvRows.join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    
-    link.setAttribute('href', url);
-    link.setAttribute('download', `estimate-report-${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    toast.success("CSV file downloaded successfully");
-  };
-
-  const handleSendEmail = () => {
-    setEmailModalOpen(true);
-  };
+  // Mock pie chart data
+  const chartData = [
+    { label: "Approved", value: summary.approved, color: "bg-success" },
+    { label: "Sent", value: summary.sent, color: "bg-primary" },
+    { label: "Draft", value: summary.draft, color: "bg-muted" },
+    { label: "Rejected", value: summary.rejected, color: "bg-destructive" },
+  ];
+  const totalChart = chartData.reduce((sum, d) => sum + d.value, 0);
 
   return (
-    <div className="flex-1 min-h-screen bg-background">
-      <div className="bg-primary text-primary-foreground p-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate("/reports")}
-              className="text-primary-foreground hover:bg-primary-foreground/20"
-            >
-              <ChevronLeft className="h-6 w-6" />
-            </Button>
-            <h1 className="text-2xl font-bold">Service Pro911 - Estimate Reports</h1>
+    <div className="h-full flex flex-col overflow-hidden">
+      <MobileHeader title="Estimate Report" showBack={true} />
+      
+      <div className="flex-1 overflow-y-auto scrollable pt-14 px-4 pb-6 space-y-4">
+        {/* Date Range */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>Start Date</Label>
+            <Input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
           </div>
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-primary-foreground hover:bg-primary-foreground/20"
-            >
-              <Info className="h-6 w-6" />
-            </Button>
+          <div>
+            <Label>End Date</Label>
+            <Input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
           </div>
         </div>
-      </div>
 
-      <div className="p-6 space-y-6 bg-background">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-medium text-foreground">
-            Date : {dateRange.from && dateRange.to 
-              ? `${format(dateRange.from, "MM/dd/yyyy")} TO ${format(dateRange.to, "MM/dd/yyyy")}`
-              : "08/01/2025 TO 10/27/2025"}
+        {/* Summary Cards */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="p-4 rounded-xl bg-primary/5 border border-primary/20">
+            <div className="flex items-center gap-2 mb-1">
+              <FileText className="h-4 w-4 text-primary" />
+              <span className="text-xs font-medium">Total</span>
+            </div>
+            <p className="text-2xl font-bold">{summary.total}</p>
+          </div>
+          <div className="p-4 rounded-xl bg-success/5 border border-success/20">
+            <div className="flex items-center gap-2 mb-1">
+              <DollarSign className="h-4 w-4 text-success" />
+              <span className="text-xs font-medium">Total Value</span>
+            </div>
+            <p className="text-xl font-bold">${summary.totalValue.toLocaleString()}</p>
+          </div>
+        </div>
+
+        {/* Conversion Rate */}
+        <div className="p-4 rounded-xl bg-accent/5 border border-accent/20">
+          <div className="flex items-center gap-2 mb-2">
+            <TrendingUp className="h-5 w-5 text-accent" />
+            <span className="font-semibold">Conversion Rate</span>
+          </div>
+          <p className="text-3xl font-bold text-accent">{summary.conversionRate}%</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {summary.approved} approved out of {summary.sent + summary.approved} sent
           </p>
-          <div className="flex-1 max-w-2xl mx-6">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-5 w-5" />
-              <Input
-                placeholder="Search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-10 bg-background"
-              />
-            </div>
+        </div>
+
+        {/* Status Breakdown */}
+        <div className="p-4 rounded-xl border bg-card">
+          <h3 className="font-semibold mb-4">Status Breakdown</h3>
+          <div className="space-y-3">
+            {chartData.map((item, idx) => {
+              const percentage = totalChart > 0 ? Math.round((item.value / totalChart) * 100) : 0;
+              return (
+                <div key={idx}>
+                  <div className="flex justify-between mb-1">
+                    <span className="text-sm font-medium">{item.label}</span>
+                    <span className="text-sm font-bold">{item.value} ({percentage}%)</span>
+                  </div>
+                  <div className="h-3 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className={`h-full ${item.color} transition-all`}
+                      style={{ width: `${percentage}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="flex items-end gap-4 flex-wrap">
-          <div className="space-y-2">
-            <Label className="text-sm font-medium text-muted-foreground">Date Range</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="w-[200px] justify-start text-left font-normal gap-2 h-10">
-                  <CalendarRange className="h-4 w-4" />
-                  {dateRange.from && dateRange.to ? (
-                    <>
-                      {format(dateRange.from, "MMM dd")} - {format(dateRange.to, "MMM dd, yyyy")}
-                    </>
-                  ) : (
-                    <span>Select date range</span>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="range"
-                  selected={dateRange}
-                  onSelect={(range) => setDateRange(range as { from: Date | undefined; to: Date | undefined })}
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-sm font-medium text-muted-foreground">Days</Label>
-            <Select value={days} onValueChange={setDays}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="All" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="7">Last 7 days</SelectItem>
-                <SelectItem value="30">Last 30 days</SelectItem>
-                <SelectItem value="90">Last 90 days</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-sm font-medium text-muted-foreground">Status</Label>
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="All" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="open">Open</SelectItem>
-                <SelectItem value="paid">Paid</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-sm font-medium text-muted-foreground">Employee</Label>
-            <Select value={employee} onValueChange={setEmployee}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="All" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="bruce">bruce wayne</SelectItem>
-                <SelectItem value="harry">Harry Potter</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-sm font-medium text-muted-foreground opacity-0">Actions</Label>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={handleClearFilters}
-                className="gap-2 h-10"
-              >
-                Clear Filter
-                <Filter className="h-4 w-4" />
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-10 w-10"
-                  >
-                    <Download className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={handleDownloadPDF} className="gap-2">
-                    <FileText className="h-4 w-4" />
-                    Download as PDF
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleDownloadCSV} className="gap-2">
-                    <FileSpreadsheet className="h-4 w-4" />
-                    Download as CSV
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleSendEmail}
-                className="h-10 w-10"
-              >
-                <Mail className="h-4 w-4" />
-              </Button>
+        {/* Top Customers */}
+        {topCustomers.length > 0 && (
+          <div className="p-4 rounded-xl border bg-card">
+            <div className="flex items-center gap-2 mb-3">
+              <Users className="h-4 w-4 text-primary" />
+              <h3 className="font-semibold">Top Customers</h3>
             </div>
-          </div>
-        </div>
-
-        {/* Estimate Table */}
-        <div className="border rounded-lg overflow-hidden bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/50">
-                <TableHead className="font-semibold">Date</TableHead>
-                <TableHead className="font-semibold">OrderID</TableHead>
-                <TableHead className="font-semibold">Customer Name</TableHead>
-                <TableHead className="font-semibold">Employee Name</TableHead>
-                <TableHead className="font-semibold">Order Amount</TableHead>
-                <TableHead className="font-semibold">Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {estimateData.map((estimate, index) => (
-                <TableRow key={index}>
-                  <TableCell className="text-muted-foreground">{estimate.date}</TableCell>
-                  <TableCell className="text-muted-foreground">{estimate.orderId}</TableCell>
-                  <TableCell className="text-primary font-medium">{estimate.customerName}</TableCell>
-                  <TableCell className="text-primary font-medium">{estimate.employeeName}</TableCell>
-                  <TableCell className="text-primary font-semibold">{estimate.amount}</TableCell>
-                  <TableCell>
-                    <span className={estimate.status === "Paid" ? "text-success font-semibold" : "text-info font-semibold"}>
-                      {estimate.status}
-                    </span>
-                  </TableCell>
-                </TableRow>
+            <div className="space-y-2">
+              {topCustomers.map((customer, idx) => (
+                <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-muted/30">
+                  <div>
+                    <p className="font-medium text-sm">{customer.name}</p>
+                    <p className="text-xs text-muted-foreground">{customer.count} estimates</p>
+                  </div>
+                  <p className="font-bold">${customer.total.toLocaleString()}</p>
+                </div>
               ))}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
+            </div>
+          </div>
+        )}
 
-      <SendEmailModal
-        open={emailModalOpen}
-        onOpenChange={setEmailModalOpen}
-        customerEmail=""
-      />
+        {/* Export Button */}
+        <Button className="w-full" size="lg">
+          <Download className="h-4 w-4 mr-2" />
+          Export Report
+        </Button>
+      </div>
     </div>
   );
 };

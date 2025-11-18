@@ -1,5 +1,11 @@
 # Welcome to your Lovable project
 
+## Project Structure
+
+**Important**: This repository now contains the mobile version as the main project. 
+- The mobile-optimized version is in the root directory (deploys to Vercel)
+- The original desktop version has been moved to the `desktop-version/` folder
+
 ## Project info
 
 **URL**: https://lovable.dev/projects/e1818580-90bd-4bba-a503-066a693e574c

@@ -1,13 +1,17 @@
+import React from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import MobileLayout from "./components/layout/MobileLayout";
+import { CartProvider } from "@/contexts/CartContext";
 
 // Import pages (will be created)
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
+import ForgotPassword from "./pages/ForgotPassword";
 import Index from "./pages/Index";
+import EmployeeDashboard from "./pages/EmployeeDashboard";
 import Customers from "./pages/Customers";
 import CustomerDetails from "./pages/CustomerDetails";
 import AddCustomer from "./pages/AddCustomer";
@@ -51,18 +55,23 @@ import ChangePassword from "./pages/ChangePassword";
 import PermissionSettings from "./pages/PermissionSettings";
 import ChangeLanguage from "./pages/ChangeLanguage";
 import Help from "./pages/Help";
+import AppBenefits from "./pages/AppBenefits";
 import TermsConditions from "./pages/TermsConditions";
 import ReturnPolicy from "./pages/ReturnPolicy";
 import BusinessPolicies from "./pages/BusinessPolicies";
 import PaymentMethods from "./pages/PaymentMethods";
 import Walkthrough from "./pages/Walkthrough";
 import NotFound from "./pages/NotFound";
+import CustomerSelection from "./pages/CustomerSelection";
+import CheckoutSummary from "./pages/CheckoutSummary";
+import CheckoutPayment from "./pages/CheckoutPayment";
+import OrderConfirmation from "./pages/OrderConfirmation";
 
 const queryClient = new QueryClient();
 
 const AppContent = () => {
   const location = useLocation();
-  const isAuthPage = ['/signin', '/signup', '/walkthrough'].includes(location.pathname);
+  const isAuthPage = ['/signin', '/signup', '/walkthrough', '/forgot-password'].includes(location.pathname);
 
   return (
     <div className="h-full w-full overflow-hidden">
@@ -70,12 +79,14 @@ const AppContent = () => {
         <Routes>
           <Route path="/signin" element={<SignIn />} />
           <Route path="/signup" element={<SignUp />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/walkthrough" element={<Walkthrough />} />
         </Routes>
       ) : (
         <MobileLayout>
           <Routes>
             <Route path="/" element={<Index />} />
+            <Route path="/employee-dashboard" element={<EmployeeDashboard />} />
             <Route path="/customers" element={<Customers />} />
             <Route path="/customers/new" element={<AddCustomer />} />
             <Route path="/customers/:id" element={<CustomerDetails />} />
@@ -98,6 +109,10 @@ const AppContent = () => {
             <Route path="/agreements/:id" element={<AgreementDetails />} />
             <Route path="/agreements/new" element={<AddAgreement />} />
             <Route path="/agreements/minimum-deposit" element={<MinimumDepositPercentage />} />
+            <Route path="/checkout/customer" element={<CustomerSelection />} />
+            <Route path="/checkout/summary" element={<CheckoutSummary />} />
+            <Route path="/checkout/payment" element={<CheckoutPayment />} />
+            <Route path="/checkout/confirmation" element={<OrderConfirmation />} />
             <Route path="/employees" element={<Employees />} />
             <Route path="/employees/new" element={<AddEmployee />} />
             <Route path="/employees/:id" element={<EmployeeDetails />} />
@@ -126,6 +141,7 @@ const AppContent = () => {
             <Route path="/settings/payment-methods" element={<PaymentMethods />} />
             <Route path="/settings/language" element={<ChangeLanguage />} />
             <Route path="/settings/help" element={<Help />} />
+            <Route path="/settings/help/app-benefits" element={<AppBenefits />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </MobileLayout>
@@ -136,16 +152,64 @@ const AppContent = () => {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <Toaster />
-    <Sonner />
-    <BrowserRouter
-      future={{
-        v7_startTransition: true,
-        v7_relativeSplatPath: true,
-      }}
-    >
-      <AppContent />
-    </BrowserRouter>
+    <CartProvider>
+      <Toaster />
+      <Sonner />
+      <BrowserRouter
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
+        <AppContent />
+      </BrowserRouter>
+    <style>{`
+      @keyframes slideDownFadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(-20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .success-toast-custom,
+      [data-sonner-toast][data-type="success"],
+      [data-sonner-toast][data-type="success"].success-toast-custom {
+        background: #E7F8EF !important;
+        border: 1px solid #34C759 !important;
+        color: #0F5132 !important;
+        border-radius: 12px !important;
+        padding: 12px 14px !important;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+        animation: slideDownFadeIn 0.3s ease-out !important;
+      }
+      [data-sonner-toast][data-type="success"] [data-icon],
+      [data-sonner-toast][data-type="success"] svg {
+        color: #34C759 !important;
+      }
+      [data-sonner-toast][data-type="success"] [data-content] {
+        color: #0F5132 !important;
+      }
+      [data-sonner-toast][data-type="error"] {
+        background: #FEF2F2 !important;
+        border: 1px solid #EF4444 !important;
+        color: #991B1B !important;
+        border-radius: 12px !important;
+        padding: 12px 14px !important;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+        animation: slideDownFadeIn 0.3s ease-out !important;
+      }
+      [data-sonner-toast][data-type="error"] [data-icon],
+      [data-sonner-toast][data-type="error"] svg {
+        color: #EF4444 !important;
+      }
+      [data-sonner-toast][data-type="error"] [data-content] {
+        color: #991B1B !important;
+      }
+    `}</style>
+    </CartProvider>
   </QueryClientProvider>
 );
 

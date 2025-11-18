@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import MobileHeader from "@/components/layout/MobileHeader";
 import InvoiceCard from "@/components/cards/InvoiceCard";
@@ -30,6 +30,7 @@ import {
   Bell,
 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 type InvoiceTab = "single" | "recurring" | "deactivated";
 type InvoiceStatusFilter = "all" | "paid" | "open";
@@ -52,8 +53,23 @@ const Invoices = () => {
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showInvoiceDueAlertModal, setShowInvoiceDueAlertModal] = useState(false);
 
+  // Check if user is an employee
+  const userType = localStorage.getItem("userType");
+  const isEmployee = userType === "employee";
+
+  // Reset active tab if employee tries to access deactivated tab
+  useEffect(() => {
+    if (isEmployee && activeTab === "deactivated") {
+      setActiveTab("single");
+    }
+  }, [isEmployee, activeTab]);
+
   const handleTabChange = (value: string) => {
     const tabValue = value as InvoiceTab;
+    // Prevent employees from accessing deactivated tab
+    if (isEmployee && tabValue === "deactivated") {
+      return;
+    }
     setActiveTab(tabValue);
     if (tabValue !== "deactivated") {
       return;
@@ -438,24 +454,28 @@ const Invoices = () => {
               className="pl-9 h-9 text-sm py-2"
             />
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowInvoiceDueAlertModal(true)}
-            className="h-9 px-2 sm:px-3 text-xs font-medium flex-shrink-0"
-          >
-            <Bell className="h-3.5 w-3.5 sm:mr-1.5" />
-            <span className="hidden sm:inline">Invoice Due Alert</span>
-            <span className="sm:hidden">Alert</span>
-          </Button>
+          {!isEmployee && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowInvoiceDueAlertModal(true)}
+              className="h-9 px-2 sm:px-3 text-xs font-medium flex-shrink-0"
+            >
+              <Bell className="h-3.5 w-3.5 sm:mr-1.5" />
+              <span className="hidden sm:inline">Invoice Due Alert</span>
+              <span className="sm:hidden">Alert</span>
+            </Button>
+          )}
         </div>
         
         {/* Invoice Type Tabs */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-3">
-          <TabsList className="w-full grid grid-cols-3 h-9">
+          <TabsList className={cn("w-full grid h-9", isEmployee ? "grid-cols-2" : "grid-cols-3")}>
             <TabsTrigger value="single" className="text-xs py-1.5 px-2">Single</TabsTrigger>
             <TabsTrigger value="recurring" className="text-xs py-1.5 px-2">Recurring</TabsTrigger>
-            <TabsTrigger value="deactivated" className="text-xs py-1.5 px-2">Deactivated</TabsTrigger>
+            {!isEmployee && (
+              <TabsTrigger value="deactivated" className="text-xs py-1.5 px-2">Deactivated</TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="single" className="mt-1.5">
@@ -464,9 +484,11 @@ const Invoices = () => {
           <TabsContent value="recurring" className="mt-1.5">
             {renderInvoices("recurring")}
           </TabsContent>
-          <TabsContent value="deactivated" className="mt-1.5">
-            {renderInvoices("deactivated")}
-          </TabsContent>
+          {!isEmployee && (
+            <TabsContent value="deactivated" className="mt-1.5">
+              {renderInvoices("deactivated")}
+            </TabsContent>
+          )}
         </Tabs>
       </div>
 
